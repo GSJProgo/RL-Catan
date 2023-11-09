@@ -17,4 +17,4 @@ for i, num in enumerate(my_array):
 colored_text = ' '.join(colored_array)
 
 # Print the colored array
-print(colored_text)
+print(colored_array)

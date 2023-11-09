@@ -1037,7 +1037,7 @@ def find_largest_army():
             opponent.victorypoints -= 2 
     
 def move_finished():
-
+ 
     player = players[game.cur_player]
 
     player.knight_cards_new += player0.knight_cards_new
@@ -1243,11 +1243,12 @@ def turn_starts():
     if c == 7:
         print(board.prettyboard)
         print("You need to move the rober")
-        
-        d = int(input("Which row?"))
-        e = int(input("Which column?"))
         discard_ressources()
-        move_rober(d,e)
+        possible = 0
+        while possible == 0:
+            d = int(input("Which row?"))
+            e = int(input("Which column?"))
+            possible = move_rober(d-1,e-1)
         steal_card()
 
     a = "a"
