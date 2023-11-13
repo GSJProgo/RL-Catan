@@ -226,6 +226,11 @@ class Random:
         self.random_action = 0
         self.random_position_x = 0
         self.random_position_y = 0
+
+class Random_Testing: 
+    def __init__(self):
+        self.numberofturns = 0
+        self.numberofgames = 0
         
 
 #config Variables
@@ -242,6 +247,11 @@ class Game:
 
         self.seven_rolled = 0
 
+        self.placement_phase_settlement_coordinate1 = 0
+        self.placement_phase_settlement_coordinate2 = 0
+
+
+random_testing = Random_Testing()
 board = Board()
 distribution = Distribution()
 player0 = Player()
@@ -984,11 +994,16 @@ def move_finished():
     player.monopoly_cards_new = 0
     player.roadbuilding_cards_new = 0 
 
+    random_testing.numberofturns += 1
+    
     if player.victorypoints >= 10:
         game.is_finished = 1
+        random_testing.numberofgames += 1
         new_game()
 
     game.cur_player = 1 - game.cur_player
+    if game.placement_phase_pending != 1:
+        turn_starts()
 
 def new_initial_state():
     board.tiles_lumber = np.zeros((_NUM_ROWS, _NUM_COLS))
@@ -1108,14 +1123,7 @@ def agent_place_placement_phase():
         d = 0
         possible = road_place_placement(a-1,b-1,c-1,d-1)
 
-def placement_phase():
-    game.cur_player = 0
-    agent_place_placement_phase()    
-    game.cur_player = 1
-    agent_place_placement_phase()
-    agent_place_placement_phase()
-    game.cur_player = 0
-    agent_place_placement_phase()
+
     
 
 
@@ -1166,11 +1174,15 @@ def new_game():
 def main():
     start()
     new_game()
+    game.placement_phase_pending = 1
+    game.placement_phase_settlement_turn = 1
     for i in range (1000000):
         random_assignment()
         action_executor()
-        if i % 100000 == 0:
+        if i % 20000 == 0:
             print(i)
+            print("number of games:",random_testing.numberofgames)
+            print("number of turns:",random_testing.numberofturns)
 
 def action_executor():
     player = players[game.cur_player]
@@ -1222,10 +1234,19 @@ def action_executor():
                 e = int(c)
                 action.road_place[d][e] = 0
                 if d < 11 and d >= 0 and e < 21 and e >= 0: 
-                    possible = road_place_placement(d,e)
+                    possible = road_place_placement(game.placement_phase_settlement_coordinate1,game.placement_phase_settlement_coordinate2,d,e)
                     if possible == 1:
                         game.placement_phase_road_turn = 0
                         game.placement_phase_settlement_turn = 1
+                        game.placement_phase_turns_made += 1
+                    if game.placement_phase_turns_made == 1:
+                        move_finished()
+                    if game.placement_phase_turns_made == 3:
+                        move_finished()    
+                    if game.placement_phase_turns_made == 4:
+                        move_finished()
+                        game.placement_phase_pending = 0
+                        game.placement_phase_turns_made = 0
     
     if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_ressources_started != 1:
         if np.any(action.settlement_place == 1):
@@ -1239,6 +1260,7 @@ def action_executor():
             b,c = np.where(action.city_place == 1)
             d = int(b)
             e = int(c)
+            action.city_place[d][e] = 0
             if d < 11 and d >= 0 and e < 21 and e >= 0: 
                 buy_city(d,e)
 
@@ -1252,17 +1274,11 @@ def action_executor():
                 if d < 11 and d >= 0 and e < 21 and e >= 0: 
                     possible = settlement_place_placement(d,e)
                     if possible == 1:
+                        game.placement_phase_settlement_coordinate1 = d
+                        game.placement_phase_settlement_coordinate2 = e
                         game.placement_phase_settlement_turn = 0
                         game.placement_phase_road_turn = 1
-                        game.placement_phase_turns_made += 1
-                    if game.placement_phase_turns_made == 1:
-                        move_finished()
-                    if game.placement_phase_turns_made == 3:
-                        move_finished()    
-                    if game.placement_phase_turns_made == 4:
-                        move_finished()
-                        game.placement_phase_pending = 0
-                        game.placement_phase_turns_made = 0
+                    
 
             
     if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_ressources_started != 1:
@@ -1405,7 +1421,7 @@ def random_assignment():
     keepressources = player_keepressources[game.cur_player]
     trading = player_trading[game.cur_player]
 
-    random_agent.random_action = np.random.choice(np.arange(1,116))
+    random_agent.random_action = np.random.choice(np.arange(1,45))
     random_agent.random_position_y = np.random.choice(np.arange(0,11))
     random_agent.random_position_x = np.random.choice(np.arange(0,21))
     
