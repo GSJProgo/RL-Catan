@@ -1190,7 +1190,6 @@ def find_longest_road():
     return ans
  
 def update_longest_road():
-    random_testing.update_longest_road
     player = players[game.cur_player]
     opponent = players[game.cur_player]
     player.roads_connected = find_longest_road()
