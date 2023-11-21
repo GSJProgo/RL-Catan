@@ -83,11 +83,11 @@ class Player:
         self.roads = np.zeros((_NUM_ROWS, _NUM_COLS))
         self.cities = np.zeros((_NUM_ROWS, _NUM_COLS))       
         #_______________________input vector__________________________
-        self.ressource_lumber = 0
-        self.ressource_wool = 0
-        self.ressource_grain = 0
-        self.ressource_brick = 0
-        self.ressource_ore = 0
+        self.resource_lumber = 0
+        self.resource_wool = 0
+        self.resource_grain = 0
+        self.resource_brick = 0
+        self.resource_ore = 0
 
         self.settlements_left = 5
         self.roads_left = 15
@@ -134,18 +134,18 @@ class Player:
         self.yearofplenty1 = 0
         self.yearofplenty2 = 0
 
-        self.discard_ressources_started = 0
-        self.discard_ressources_turn = 0
+        self.discard_resources_started = 0
+        self.discard_resources_turn = 0
         self.discard_first_time = 0
-        self.total_ressources = 0
+        self.total_resources = 0
 
-        self.discard_ressources_lumber = 0
-        self.discard_ressources_wool = 0
-        self.discard_ressources_grain = 0
-        self.discard_ressources_brick = 0
-        self.discard_ressources_ore = 0
+        self.discard_resources_lumber = 0
+        self.discard_resources_wool = 0
+        self.discard_resources_grain = 0
+        self.discard_resources_brick = 0
+        self.discard_resources_ore = 0
 
-        #__________________game-specific ressource_____________
+        #__________________game-specific resource_____________
         #roads
         self.roads_possible = np.zeros((_NUM_ROWS, _NUM_COLS))
 
@@ -178,21 +178,21 @@ class Player:
             self.yearofplenty_cards_activate = 0
 
 
-            #Which ressources do you want to take (Chooses twice)
+            #Which resources do you want to take (Chooses twice)
             self.yearofplenty_lumber = 0
             self.yearofplenty_wool = 0
             self.yearofplenty_grain = 0
             self.yearofplenty_brick = 0
             self.yearofplenty_ore = 0
 
-            #Which ressource do you want to take when playing monopoly
+            #Which resource do you want to take when playing monopoly
             self.monopoly_lumber = 0
             self.monopoly_wool = 0
             self.monopoly_grain = 0
             self.monopoly_brick = 0
             self.monopoly_ore = 0
             
-        class KeepRessources:
+        class Keepresources:
             def __init__(self):
                 self.keep_lumber = 0
                 self.keep_wool = 0
@@ -257,9 +257,9 @@ class Random_Testing:
         self.find_largest_army = 0
         self.trav = 0
         self.move_finished = 0
-        self.randomly_pick_ressources = 0
-        self.discard_ressources = 0
-        self.trade_ressources = 0
+        self.randomly_pick_resources = 0
+        self.discard_resources = 0
+        self.trade_resources = 0
         self.move_rober = 0
         self.play_knight = 0
         self.steal_card = 0
@@ -288,27 +288,27 @@ class Random_Testing:
         self.successful_find_largest_army = 0
         self.successful_trav = 0
         self.successful_move_finished = 0
-        self.successful_randomly_pick_ressources = 0
-        self.successful_discard_ressources = 0
-        self.successful_trade_ressources = 0
+        self.successful_randomly_pick_resources = 0
+        self.successful_discard_resources = 0
+        self.successful_trade_resources = 0
         self.successful_move_rober = 0
         self.successful_play_knight = 0
         self.successful_steal_card = 0
         self.successful_roll_dice = 0
 
-        self.ressource_lumber_total = 0
-        self.ressource_wool_total = 0
-        self.ressource_grain_total = 0
-        self.ressource_brick_total = 0
-        self.ressource_ore_total = 0
+        self.resource_lumber_total = 0
+        self.resource_wool_total = 0
+        self.resource_grain_total = 0
+        self.resource_brick_total = 0
+        self.resource_ore_total = 0
 
         self.howmuchisthisaccsessed = 0
 
 
-        self.ressources_buy_road = 0
-        self.ressources_buy_settlement = 0
-        self.ressources_buy_city = 0
-        self.ressources_buy_dc = 0
+        self.resources_buy_road = 0
+        self.resources_buy_settlement = 0
+        self.resources_buy_city = 0
+        self.resources_buy_dc = 0
 
 
         
@@ -342,9 +342,9 @@ player0_action = player0.Action()
 player1_action = player1.Action()
 player_action = [player0_action, player1_action]
 game = Game()
-player0_keepressources = player0.Action.KeepRessources()
-player1_keepressources = player1.Action.KeepRessources()
-player_keepressources = [player0_keepressources, player1_keepressources]
+player0_keepresources = player0.Action.Keepresources()
+player1_keepresources = player1.Action.Keepresources()
+player_keepresources = [player0_keepresources, player1_keepresources]
 player0_trading = player0.Action.Trading()
 player1_trading = player1.Action.Trading()
 player_trading = [player0_trading, player1_trading]
@@ -704,40 +704,40 @@ def roll_dice():
                 #
                 if player0.rewards_possible[i][j] != 0:
                     if board.tiles_lumber[i][j] == 1:
-                        player0.ressource_lumber += player0.rewards_possible[i][j]
+                        player0.resource_lumber += player0.rewards_possible[i][j]
                     elif board.tiles_wool[i][j] == 1:
-                        player0.ressource_wool += player0.rewards_possible[i][j]
+                        player0.resource_wool += player0.rewards_possible[i][j]
                     elif board.tiles_grain[i][j] == 1:
-                        player0.ressource_grain += player0.rewards_possible[i][j]
+                        player0.resource_grain += player0.rewards_possible[i][j]
                     elif board.tiles_brick[i][j] == 1:
-                        player0.ressource_brick += player0.rewards_possible[i][j]
+                        player0.resource_brick += player0.rewards_possible[i][j]
                     elif board.tiles_ore[i][j] == 1:
-                        player0.ressource_ore += player0.rewards_possible[i][j]
+                        player0.resource_ore += player0.rewards_possible[i][j]
 
                 if player1.rewards_possible[i][j] != 0:
                     if board.tiles_lumber[i][j] == 1:
-                        player1.ressource_lumber += player1.rewards_possible[i][j]
+                        player1.resource_lumber += player1.rewards_possible[i][j]
                     elif board.tiles_wool[i][j] == 1:
-                        player1.ressource_wool += player1.rewards_possible[i][j]
+                        player1.resource_wool += player1.rewards_possible[i][j]
                     elif board.tiles_grain[i][j] == 1:
-                        player1.ressource_grain += player1.rewards_possible[i][j]
+                        player1.resource_grain += player1.rewards_possible[i][j]
                     elif board.tiles_brick[i][j] == 1:
-                        player1.ressource_brick += player1.rewards_possible[i][j]
+                        player1.resource_brick += player1.rewards_possible[i][j]
                     elif board.tiles_ore[i][j] == 1:
-                        player1.ressource_ore += player1.rewards_possible[i][j]
+                        player1.resource_ore += player1.rewards_possible[i][j]
     return roll
 
 def buy_development_cards():
     random_testing.buy_development_cards += 1
     player = players[game.cur_player]
     possible = 0
-    if player.ressource_wool > 0 and player.ressource_grain > 0 and player.ressource_ore > 0 and distribution.development_cards_bought < 25:
+    if player.resource_wool > 0 and player.resource_grain > 0 and player.resource_ore > 0 and distribution.development_cards_bought < 25:
         possible = development_card_choose()
         if possible == 1:
             find_largest_army()
-            player.ressource_wool -= 1
-            player.ressource_grain -= 1 
-            player.ressource_ore -= 1 
+            player.resource_wool -= 1
+            player.resource_grain -= 1 
+            player.resource_ore -= 1 
             return 1
     return 0 
         
@@ -747,11 +747,11 @@ def buy_road(a,b):
     random_testing.buy_road += 1
     possible = 0
     player = players[game.cur_player]
-    if player.ressource_brick > 0 and player.ressource_lumber > 0:
+    if player.resource_brick > 0 and player.resource_lumber > 0:
             possible = road_place(a,b)
             if possible == 1:
-                player.ressource_brick -= 1
-                player.ressource_lumber -= 1
+                player.resource_brick -= 1
+                player.resource_lumber -= 1
                 return 1
     return 0 
 
@@ -761,13 +761,13 @@ def buy_settlement(a,b):
     player = players[game.cur_player]
     possible = 0
 
-    if player.ressource_brick > 0 and player.ressource_lumber > 0 and player.ressource_grain > 0 and player.ressource_wool > 0:
+    if player.resource_brick > 0 and player.resource_lumber > 0 and player.resource_grain > 0 and player.resource_wool > 0:
         possible = settlement_place(a,b)
         if possible == 1:
-            player.ressource_lumber -= 1
-            player.ressource_brick -= 1
-            player.ressource_wool -= 1 
-            player.ressource_grain -= 1
+            player.resource_lumber -= 1
+            player.resource_brick -= 1
+            player.resource_wool -= 1 
+            player.resource_grain -= 1
             return 1 
     return 0 
             
@@ -775,13 +775,13 @@ def buy_city(a,b):
     random_testing.buy_city += 1
     player = players[game.cur_player]
     possible = 0
-    if player0.ressource_grain > 1 and player0.ressource_ore > 2:
+    if player0.resource_grain > 1 and player0.resource_ore > 2:
         print("wow")
-    if player.ressource_grain > 1 and player.ressource_ore > 2:
+    if player.resource_grain > 1 and player.resource_ore > 2:
         possible = city_place(a,b)
         if possible == 1:
-            player.ressource_grain -= 2
-            player.ressource_ore -= 3  
+            player.resource_grain -= 2
+            player.resource_ore -= 3  
             return 1
     return 0 
 
@@ -790,24 +790,24 @@ def steal_card():
     player = players[game.cur_player]
     opponent = players[1-game.cur_player]
     
-    opponent_ressources_total = opponent.ressource_lumber + opponent.ressource_brick + opponent.ressource_wool + opponent.ressource_grain + opponent.ressource_ore
-    if opponent_ressources_total != 0:
-        random_ressource = np.random.choice(np.arange(1, 6), p=[opponent.ressource_lumber/opponent_ressources_total, opponent.ressource_brick/opponent_ressources_total, opponent.ressource_wool/opponent_ressources_total, opponent.ressource_grain/opponent_ressources_total, opponent.ressource_ore/opponent_ressources_total])
-        if random_ressource == 1:
-            opponent.ressource_lumber = opponent.ressource_lumber - 1
-            player.ressource_lumber = player.ressource_lumber + 1
-        elif random_ressource == 2:
-            opponent.ressource_brick = opponent.ressource_brick - 1
-            player.ressource_brick = player.ressource_brick + 1
-        elif random_ressource == 3:
-            opponent.ressource_wool = opponent.ressource_wool - 1
-            player.ressource_wool = player.ressource_wool + 1
-        elif random_ressource == 4:
-            opponent.ressource_grain = opponent.ressource_grain - 1
-            player.ressource_grain = player.ressource_grain + 1
-        elif random_ressource == 5:
-            opponent.ressource_ore = opponent.ressource_ore - 1
-            player.ressource_ore = player.ressource_ore + 1
+    opponent_resources_total = opponent.resource_lumber + opponent.resource_brick + opponent.resource_wool + opponent.resource_grain + opponent.resource_ore
+    if opponent_resources_total != 0:
+        random_resource = np.random.choice(np.arange(1, 6), p=[opponent.resource_lumber/opponent_resources_total, opponent.resource_brick/opponent_resources_total, opponent.resource_wool/opponent_resources_total, opponent.resource_grain/opponent_resources_total, opponent.resource_ore/opponent_resources_total])
+        if random_resource == 1:
+            opponent.resource_lumber = opponent.resource_lumber - 1
+            player.resource_lumber = player.resource_lumber + 1
+        elif random_resource == 2:
+            opponent.resource_brick = opponent.resource_brick - 1
+            player.resource_brick = player.resource_brick + 1
+        elif random_resource == 3:
+            opponent.resource_wool = opponent.resource_wool - 1
+            player.resource_wool = player.resource_wool + 1
+        elif random_resource == 4:
+            opponent.resource_grain = opponent.resource_grain - 1
+            player.resource_grain = player.resource_grain + 1
+        elif random_resource == 5:
+            opponent.resource_ore = opponent.resource_ore - 1
+            player.resource_ore = player.resource_ore + 1
         random_testing.steal_card += 1
 
 
@@ -833,59 +833,59 @@ def move_rober(a,b):
         return 1
     return 0
 
-def activate_yearofplenty_func(ressource1,ressource2):
+def activate_yearofplenty_func(resource1,resource2):
     random_testing.activate_yearofplenty_func += 1
-    #need to take a look at this later. I'm not sure how to comvert those ressources. 
+    #need to take a look at this later. I'm not sure how to comvert those resources. 
     player = players[game.cur_player]
     if player.yearofplenty_cards_old > 0:
         player.yearofplenty_cards_old = player.yearofplenty_cards_old - 1 
-        if ressource1 == 1:
-            player.ressource_lumber += 1
-        if ressource1 == 1:
-            player.ressource_lumber = player.ressource_lumber + 1
-        elif ressource1 == 2:
-            player.ressource_brick = player.ressource_brick + 1
-        elif ressource1 == 3:
-            player.ressource_wool = player.ressource_wool + 1
-        elif ressource1 == 4:
-            player.ressource_grain = player.ressource_grain + 1
-        elif ressource1 == 5:
-            player.ressource_ore = player.ressource_ore + 1
-        if ressource2 == 1:
-            player.ressource_lumber = player.ressource_lumber + 1
-        elif ressource2 == 2:
-            player.ressource_brick = player.ressource_brick + 1
-        elif ressource2 == 3:
-            player.ressource_wool = player.ressource_wool + 1
-        elif ressource2 == 4:
-            player.ressource_grain = player.ressource_grain + 1
-        elif ressource2 == 5:
-            player.ressource_ore = player.ressource_ore + 1
+        if resource1 == 1:
+            player.resource_lumber += 1
+        if resource1 == 1:
+            player.resource_lumber = player.resource_lumber + 1
+        elif resource1 == 2:
+            player.resource_brick = player.resource_brick + 1
+        elif resource1 == 3:
+            player.resource_wool = player.resource_wool + 1
+        elif resource1 == 4:
+            player.resource_grain = player.resource_grain + 1
+        elif resource1 == 5:
+            player.resource_ore = player.resource_ore + 1
+        if resource2 == 1:
+            player.resource_lumber = player.resource_lumber + 1
+        elif resource2 == 2:
+            player.resource_brick = player.resource_brick + 1
+        elif resource2 == 3:
+            player.resource_wool = player.resource_wool + 1
+        elif resource2 == 4:
+            player.resource_grain = player.resource_grain + 1
+        elif resource2 == 5:
+            player.resource_ore = player.resource_ore + 1
         random_testing.successful_activate_yearofplenty_func += 1
         return 1 
     return 0 
 
-def activate_monopoly_func(ressource):
+def activate_monopoly_func(resource):
     random_testing.activate_monopoly_func += 1
     player = players[game.cur_player]
     opponent = players[1-game.cur_player]
     if player.monopoly_cards_old > 0:
         player.monopoly_cards_old = player.monopoly_cards_old - 1
-        if ressource == 1:
-            player.ressource_lumber = player.ressource_lumber + opponent.ressource_lumber
-            opponent.ressource_lumber = 0
-        elif ressource == 2:
-            player.ressource_wool = player.ressource_wool + opponent.ressource_wool
-            opponent.ressource_wool = 0
-        elif ressource == 3:
-            player.ressource_grain = player.ressource_grain + opponent.ressource_grain
-            opponent.ressource_grain = 0
-        elif ressource == 4:
-            player.ressource_brick = player.ressource_brick + opponent.ressource_brick
-            opponent.ressource_brick = 0
-        elif ressource == 5:
-            player.ressource_ore = player.ressource_ore + opponent.ressource_ore
-            opponent.ressource_ore = 0
+        if resource == 1:
+            player.resource_lumber = player.resource_lumber + opponent.resource_lumber
+            opponent.resource_lumber = 0
+        elif resource == 2:
+            player.resource_wool = player.resource_wool + opponent.resource_wool
+            opponent.resource_wool = 0
+        elif resource == 3:
+            player.resource_grain = player.resource_grain + opponent.resource_grain
+            opponent.resource_grain = 0
+        elif resource == 4:
+            player.resource_brick = player.resource_brick + opponent.resource_brick
+            opponent.resource_brick = 0
+        elif resource == 5:
+            player.resource_ore = player.resource_ore + opponent.resource_ore
+            opponent.resource_ore = 0
         random_testing.successful_activate_monopoly_func += 1
         return 1
     return 0
@@ -907,265 +907,265 @@ def activate_road_building_func(a1,b1,a2,b2):
                 player.roads[a1][b1] = 0
     return 0
     
-def trade_ressources(give, get):
+def trade_resources(give, get):
 
-    random_testing.trade_ressources += 1
+    random_testing.trade_resources += 1
     player = players[game.cur_player]
     if give == 1 and (board.harbor_lumber * player.settlements + board.harbor_lumber * player.cities).any() != 0:
-        if player.ressource_lumber > 1:
-            player.ressource_lumber -= 2
+        if player.resource_lumber > 1:
+            player.resource_lumber -= 2
             if get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 4:
-                player.ressource_brick += 1
+                player.resource_brick += 1
             elif get == 5:
-                player.ressource_ore += 1
+                player.resource_ore += 1
     elif give == 2 and (board.harbor_wool * player.settlements + board.harbor_wool * player.cities).any() != 0:
-        if player.ressource_wool > 1:
-            player.ressource_wool -= 2
+        if player.resource_wool > 1:
+            player.resource_wool -= 2
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 4:
-                player.ressource_brick += 1
+                player.resource_brick += 1
             elif get == 5:
-                player.ressource_ore += 1
+                player.resource_ore += 1
     elif give == 3 and (board.harbor_grain * player.settlements + board.harbor_grain * player.cities).any() != 0:
-        if player.ressource_grain > 1:
-            player.ressource_grain -= 2
+        if player.resource_grain > 1:
+            player.resource_grain -= 2
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 4:
-                player.ressource_brick += 1
+                player.resource_brick += 1
             elif get == 5:
-                player.ressource_ore += 1
+                player.resource_ore += 1
     elif give == 4 and (board.harbor_brick * player.settlements + board.harbor_brick * player.cities).any() != 0:
-        if player.ressource_brick > 1:
-            player.ressource_brick -= 2
+        if player.resource_brick > 1:
+            player.resource_brick -= 2
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 5:
-                player.ressource_ore += 1
+                player.resource_ore += 1
     elif give == 5 and (board.harbor_ore * player.settlements + board.harbor_ore * player.cities).any() != 0:
-        if player.ressource_ore > 1:
-            player.ressource_ore -= 2
+        if player.resource_ore > 1:
+            player.resource_ore -= 2
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 4:
-                player.ressource_brick += 1 
+                player.resource_brick += 1 
     elif (board.harbor_three_one * player.settlements + board.harbor_three_one * player.cities).any() != 0:
-        if give == 1 and player.ressource_lumber > 2:
-            player.ressource_lumber -= 3
+        if give == 1 and player.resource_lumber > 2:
+            player.resource_lumber -= 3
             if get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 4:
-                player.ressource_brick += 1
+                player.resource_brick += 1
             elif get == 5:
-                player.ressource_ore += 1
-        elif give == 2 and player.ressource_wool > 2:
-            player.ressource_wool -= 3
+                player.resource_ore += 1
+        elif give == 2 and player.resource_wool > 2:
+            player.resource_wool -= 3
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 4:
-                player.ressource_brick += 1
+                player.resource_brick += 1
             elif get == 5:
-                player.ressource_ore += 1        
-        elif give == 3 and player.ressource_grain > 2:
-            player.ressource_grain -= 3
+                player.resource_ore += 1        
+        elif give == 3 and player.resource_grain > 2:
+            player.resource_grain -= 3
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 4:
-                player.ressource_brick += 1
+                player.resource_brick += 1
             elif get == 5:
-                player.ressource_ore += 1
-        elif give == 4 and player.ressource_brick > 2:
-            player.ressource_brick -= 3
+                player.resource_ore += 1
+        elif give == 4 and player.resource_brick > 2:
+            player.resource_brick -= 3
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 5:
-                player.ressource_ore += 1
-        elif give == 5 and player.ressource_ore > 2:
-            player.ressource_ore -= 3
+                player.resource_ore += 1
+        elif give == 5 and player.resource_ore > 2:
+            player.resource_ore -= 3
             if get == 1:
-                player.ressource_lumber += 1
+                player.resource_lumber += 1
             elif get == 2:
-                player.ressource_wool += 1
+                player.resource_wool += 1
             elif get == 3:
-                player.ressource_grain += 1
+                player.resource_grain += 1
             elif get == 4:
-                player.ressource_brick += 1
-    elif give == 1 and player.ressource_lumber > 3:
-        player.ressource_lumber -= 4
+                player.resource_brick += 1
+    elif give == 1 and player.resource_lumber > 3:
+        player.resource_lumber -= 4
         if get == 2:
-            player.ressource_wool += 1
+            player.resource_wool += 1
         elif get == 3:
-            player.ressource_grain += 1
+            player.resource_grain += 1
         elif get == 4:
-            player.ressource_brick += 1
+            player.resource_brick += 1
         elif get == 5:
-            player.ressource_ore += 1
-    elif give == 2 and player.ressource_wool > 3:
-        player.ressource_wool -= 4
+            player.resource_ore += 1
+    elif give == 2 and player.resource_wool > 3:
+        player.resource_wool -= 4
         if get == 1:
-            player.ressource_lumber += 1
+            player.resource_lumber += 1
         elif get == 3:
-            player.ressource_grain += 1
+            player.resource_grain += 1
         elif get == 4:
-            player.ressource_brick += 1
+            player.resource_brick += 1
         elif get == 5:
-            player.ressource_ore += 1    
-    elif give == 3 and player.ressource_grain > 3:
-        player.ressource_grain -= 4
+            player.resource_ore += 1    
+    elif give == 3 and player.resource_grain > 3:
+        player.resource_grain -= 4
         if get == 1:
-            player.ressource_lumber += 1
+            player.resource_lumber += 1
         elif get == 2:
-            player.ressource_wool += 1
+            player.resource_wool += 1
         elif get == 4:
-            player.ressource_brick += 1
+            player.resource_brick += 1
         elif get == 5:
-            player.ressource_ore += 1
-    elif give == 4 and player.ressource_brick > 3:
-        player.ressource_brick -= 4
+            player.resource_ore += 1
+    elif give == 4 and player.resource_brick > 3:
+        player.resource_brick -= 4
         if get == 1:
-            player.ressource_lumber += 1
+            player.resource_lumber += 1
         elif get == 2:
-            player.ressource_wool += 1
+            player.resource_wool += 1
         elif get == 3:
-            player.ressource_grain += 1
+            player.resource_grain += 1
         elif get == 5:
-            player.ressource_ore += 1
-    elif give == 5 and player.ressource_ore > 3:
-        player.ressource_ore -= 4
+            player.resource_ore += 1
+    elif give == 5 and player.resource_ore > 3:
+        player.resource_ore -= 4
         if get == 1:
-            player.ressource_lumber += 1
+            player.resource_lumber += 1
         elif get == 2:
-            player.ressource_wool += 1
+            player.resource_wool += 1
         elif get == 3:
-            player.ressource_grain += 1
+            player.resource_grain += 1
         elif get == 4:
-            player.ressource_brick += 1
+            player.resource_brick += 1
 
 
-def discard_ressources(lumber, wool, grain, brick, ore):
-    random_testing.discard_ressources += 1
+def discard_resources(lumber, wool, grain, brick, ore):
+    random_testing.discard_resources += 1
     player = players[game.cur_player]
     if player.discard_first_time == 1:
-        player.total_ressources = player.ressource_lumber + player.ressource_brick + player.ressource_grain + player.ressource_ore + player.ressource_wool 
-        #print("total_ressource beginning", player.total_ressources)
-        player.discard_ressources_lumber = player.ressource_lumber
-        player.discard_ressources_wool = player.ressource_wool
-        player.discard_ressources_grain = player.ressource_grain
-        player.discard_ressources_brick = player.ressource_brick
-        player.discard_ressources_ore = player.ressource_ore
-        player.ressource_lumber = 0
-        player.ressource_wool = 0
-        player.ressource_grain = 0
-        player.ressource_brick = 0
-        player.ressource_ore = 0
+        player.total_resources = player.resource_lumber + player.resource_brick + player.resource_grain + player.resource_ore + player.resource_wool 
+        #print("total_resource beginning", player.total_resources)
+        player.discard_resources_lumber = player.resource_lumber
+        player.discard_resources_wool = player.resource_wool
+        player.discard_resources_grain = player.resource_grain
+        player.discard_resources_brick = player.resource_brick
+        player.discard_resources_ore = player.resource_ore
+        player.resource_lumber = 0
+        player.resource_wool = 0
+        player.resource_grain = 0
+        player.resource_brick = 0
+        player.resource_ore = 0
         player.discard_first_time = 0
 
     if lumber == 1:  
-        if player.discard_ressources_lumber != 0:
-            player.ressource_lumber += 1
-            player.discard_ressources_lumber -= 1 
-            player.discard_ressources_turn += 1
+        if player.discard_resources_lumber != 0:
+            player.resource_lumber += 1
+            player.discard_resources_lumber -= 1 
+            player.discard_resources_turn += 1
     elif wool == 1:
-        if player.discard_ressources_wool != 0:
-            player.ressource_wool += 1
-            player.discard_ressources_wool -= 1
-            player.discard_ressources_turn += 1
+        if player.discard_resources_wool != 0:
+            player.resource_wool += 1
+            player.discard_resources_wool -= 1
+            player.discard_resources_turn += 1
     elif grain == 1:
-        if player.discard_ressources_grain != 0:
-            player.ressource_grain += 1
-            player.discard_ressources_grain -= 1 
-            player.discard_ressources_turn += 1
+        if player.discard_resources_grain != 0:
+            player.resource_grain += 1
+            player.discard_resources_grain -= 1 
+            player.discard_resources_turn += 1
     elif brick == 1:
-        if player.discard_ressources_brick != 0:
-            player.ressource_brick += 1
-            player.discard_ressources_brick -= 1 
-            player.discard_ressources_turn += 1
+        if player.discard_resources_brick != 0:
+            player.resource_brick += 1
+            player.discard_resources_brick -= 1 
+            player.discard_resources_turn += 1
     elif ore == 1:
-        if player.discard_ressources_ore != 0:
-            player.ressource_ore += 1
-            player.discard_ressources_ore -= 1 
-            player.discard_ressources_turn += 1
+        if player.discard_resources_ore != 0:
+            player.resource_ore += 1
+            player.discard_resources_ore -= 1 
+            player.discard_resources_turn += 1
 
 
 
-    #remove ressource
-    if player.discard_ressources_turn == 4:
-        for i in range(0,math.ceil(player.total_ressources/2)-4,1):
-            randomly_pick_ressources()
-        player.discard_ressources_lumber = 0
-        player.discard_ressources_wool = 0
-        player.discard_ressources_grain = 0
-        player.discard_ressources_brick = 0
-        player.discard_ressources_ore = 0
-        player.discard_ressources_turn = 0
-        player.discard_ressources_started = 0
-        random_testing.successful_discard_ressources += 1
-        #print("total ressource after",player.ressource_lumber + player.ressource_wool + player.ressource_grain + player.ressource_brick + player.ressource_ore)
+    #remove resource
+    if player.discard_resources_turn == 4:
+        for i in range(0,math.ceil(player.total_resources/2)-4,1):
+            randomly_pick_resources()
+        player.discard_resources_lumber = 0
+        player.discard_resources_wool = 0
+        player.discard_resources_grain = 0
+        player.discard_resources_brick = 0
+        player.discard_resources_ore = 0
+        player.discard_resources_turn = 0
+        player.discard_resources_started = 0
+        random_testing.successful_discard_resources += 1
+        #print("total resource after",player.resource_lumber + player.resource_wool + player.resource_grain + player.resource_brick + player.resource_ore)
         steal_card()
         
 
     
 
-def randomly_pick_ressources():
-    random_testing.randomly_pick_ressources += 1
+def randomly_pick_resources():
+    random_testing.randomly_pick_resources += 1
 
     #this is a mixture and not correct
     player = players[game.cur_player]
-    possible_ressources_left = np.ones((5)) #if there are still one of those ressources available after picking the first four
-    if player.discard_ressources_lumber != 0:
-        possible_ressources_left[0] = 1
-    if player.discard_ressources_wool != 0:
-        possible_ressources_left[1] = 1
-    if player.discard_ressources_grain != 0:
-        possible_ressources_left[2] = 1
-    if player.discard_ressources_brick != 0:
-        possible_ressources_left[3] = 1
-    if player.discard_ressources_ore != 0:
-        possible_ressources_left[4] = 1
+    possible_resources_left = np.ones((5)) #if there are still one of those resources available after picking the first four
+    if player.discard_resources_lumber != 0:
+        possible_resources_left[0] = 1
+    if player.discard_resources_wool != 0:
+        possible_resources_left[1] = 1
+    if player.discard_resources_grain != 0:
+        possible_resources_left[2] = 1
+    if player.discard_resources_brick != 0:
+        possible_resources_left[3] = 1
+    if player.discard_resources_ore != 0:
+        possible_resources_left[4] = 1
     
-    numbers = np.random.choice(np.arange(1,6),p = [possible_ressources_left[0]/possible_ressources_left.sum(),possible_ressources_left[1]/possible_ressources_left.sum(),possible_ressources_left[2]/possible_ressources_left.sum(),possible_ressources_left[3]/possible_ressources_left.sum(),possible_ressources_left[4]/possible_ressources_left.sum()])
+    numbers = np.random.choice(np.arange(1,6),p = [possible_resources_left[0]/possible_resources_left.sum(),possible_resources_left[1]/possible_resources_left.sum(),possible_resources_left[2]/possible_resources_left.sum(),possible_resources_left[3]/possible_resources_left.sum(),possible_resources_left[4]/possible_resources_left.sum()])
     if numbers == 1:
-        player.ressource_lumber += 1 
-        player.discard_ressources_lumber -= 1 
+        player.resource_lumber += 1 
+        player.discard_resources_lumber -= 1 
     elif numbers == 2:
-        player.ressource_brick += 1 
-        player.discard_ressources_brick -= 1 
+        player.resource_brick += 1 
+        player.discard_resources_brick -= 1 
     elif numbers == 3:
-        player.ressource_wool += 1 
-        player.discard_ressources_wool -= 1 
+        player.resource_wool += 1 
+        player.discard_resources_wool -= 1 
     elif numbers == 4:
-        player.ressource_grain += 1 
-        player.discard_ressources_grain -= 1 
+        player.resource_grain += 1 
+        player.discard_resources_grain -= 1 
     elif numbers == 5:
-        player.ressource_ore += 1 
-        player.discard_ressources_ore -= 1 
+        player.resource_ore += 1 
+        player.discard_resources_ore -= 1 
 
 
 def longest_road(i, j, prev_move):
@@ -1326,11 +1326,11 @@ def new_initial_state():
         player.roads = np.zeros((_NUM_ROWS, _NUM_COLS))
         player.cities = np.zeros((_NUM_ROWS, _NUM_COLS))       
         #_______________________input vector__________________________
-        player.ressource_lumber = 0
-        player.ressource_wool = 0
-        player.ressource_grain = 0
-        player.ressource_brick = 0
-        player.ressource_ore = 0
+        player.resource_lumber = 0
+        player.resource_wool = 0
+        player.resource_grain = 0
+        player.resource_brick = 0
+        player.resource_ore = 0
 
         player.settlements_left = 5
         player.roads_left = 15
@@ -1377,18 +1377,18 @@ def new_initial_state():
         player.yearofplenty1 = 0
         player.yearofplenty2 = 0
 
-        player.discard_ressources_started = 0
-        player.discard_ressources_turn = 0
+        player.discard_resources_started = 0
+        player.discard_resources_turn = 0
         player.discard_first_time = 0
-        player.total_ressources = 0
+        player.total_resources = 0
 
-        player.discard_ressources_lumber = 0
-        player.discard_ressources_wool = 0
-        player.discard_ressources_grain = 0
-        player.discard_ressources_brick = 0
-        player.discard_ressources_ore = 0
+        player.discard_resources_lumber = 0
+        player.discard_resources_wool = 0
+        player.discard_resources_grain = 0
+        player.discard_resources_brick = 0
+        player.discard_resources_ore = 0
 
-        #__________________game-specific ressource_____________
+        #__________________game-specific resource_____________
         #roads
         player.roads_possible = np.zeros((_NUM_ROWS, _NUM_COLS))
 
@@ -1436,14 +1436,14 @@ def turn_starts():
     player = players[game.cur_player]
     c = roll_dice()
 
-    if player.ressource_wool > 0 and player.ressource_grain > 0 and player.ressource_ore > 0:
-        random_testing.ressources_buy_dc += 1
-    if player.ressource_brick > 0 and player.ressource_lumber > 0:
-        random_testing.ressources_buy_road += 1
-    if player.ressource_grain > 1 and player.ressource_ore > 2:
-        random_testing.ressources_buy_city += 1
-    if player.ressource_brick > 0 and player.ressource_lumber > 0 and player.ressource_grain > 0 and player.ressource_wool > 0:
-        random_testing.ressources_buy_settlement += 1
+    if player.resource_wool > 0 and player.resource_grain > 0 and player.resource_ore > 0:
+        random_testing.resources_buy_dc += 1
+    if player.resource_brick > 0 and player.resource_lumber > 0:
+        random_testing.resources_buy_road += 1
+    if player.resource_grain > 1 and player.resource_ore > 2:
+        random_testing.resources_buy_city += 1
+    if player.resource_brick > 0 and player.resource_lumber > 0 and player.resource_grain > 0 and player.resource_wool > 0:
+        random_testing.resources_buy_settlement += 1
     if c == 7:
         game.seven_rolled = 1
         
@@ -1463,11 +1463,11 @@ def main():
         random_assignment()
         action_executor()    
 
-        random_testing.ressource_lumber_total += player0.ressource_lumber
-        random_testing.ressource_wool_total += player0.ressource_wool
-        random_testing.ressource_grain_total += player0.ressource_grain
-        random_testing.ressource_brick_total += player0.ressource_brick
-        random_testing.ressource_ore_total += player0.ressource_ore
+        random_testing.resource_lumber_total += player0.resource_lumber
+        random_testing.resource_wool_total += player0.resource_wool
+        random_testing.resource_grain_total += player0.resource_grain
+        random_testing.resource_brick_total += player0.resource_brick
+        random_testing.resource_ore_total += player0.resource_ore
 
 
 
@@ -1485,23 +1485,23 @@ def main():
             print("number of victorypoints player0", player0.victorypoints)
             print("number of victorypoints player1", player1.victorypoints)
 
-            print("lumber player 0:", player0.ressource_lumber)
-            print("wool player 0:", player0.ressource_wool)
-            print("grain player 0:", player0.ressource_grain)
-            print("brick player 0:", player0.ressource_brick)
-            print("ore player 0:", player0.ressource_ore)
+            print("lumber player 0:", player0.resource_lumber)
+            print("wool player 0:", player0.resource_wool)
+            print("grain player 0:", player0.resource_grain)
+            print("brick player 0:", player0.resource_brick)
+            print("ore player 0:", player0.resource_ore)
 
-            print("lumber player 1:", player1.ressource_lumber)
-            print("wool player 1:", player1.ressource_wool)
-            print("grain player 1:", player1.ressource_grain)
-            print("brick player 1:", player1.ressource_brick)
-            print("ore player 1:", player1.ressource_ore)
+            print("lumber player 1:", player1.resource_lumber)
+            print("wool player 1:", player1.resource_wool)
+            print("grain player 1:", player1.resource_grain)
+            print("brick player 1:", player1.resource_brick)
+            print("ore player 1:", player1.resource_ore)
 
-            print(random_testing.ressource_lumber_total)
-            print(random_testing.ressource_wool_total)
-            print(random_testing.ressource_grain_total)
-            print(random_testing.ressource_brick_total)
-            print(random_testing.ressource_ore_total)
+            print(random_testing.resource_lumber_total)
+            print(random_testing.resource_wool_total)
+            print(random_testing.resource_grain_total)
+            print(random_testing.resource_brick_total)
+            print(random_testing.resource_ore_total)
         if i % 10000 == 0:
             if player.knight_move_pending == 1:
                 print("knight move is pending")
@@ -1511,8 +1511,8 @@ def main():
                 print("roadbuilding move is pending")
             if player.yearofplenty_move_pending == 1:
                 print("yearofplenty move is pending")
-            if player.discard_ressources_started == 1:
-                print("discard_ressources move is pending")
+            if player.discard_resources_started == 1:
+                print("discard_resources move is pending")
             if opponent.knight_move_pending == 1:
                 print("knight move is pending")
             if opponent.monopoly_move_pending == 1:
@@ -1521,8 +1521,8 @@ def main():
                 print("roadbuilding move is pending")
             if opponent.yearofplenty_move_pending == 1:
                 print("yearofplenty move is pending")
-            if opponent.discard_ressources_started == 1:
-                print("discard_ressources move is pending")
+            if opponent.discard_resources_started == 1:
+                print("discard_resources move is pending")
         if i % 100000 == 0:
 
             print(opponent.roadbuilding_move_pending,player.roadbuilding_move_pending)
@@ -1549,9 +1549,9 @@ def main():
             print("find_largest_army:",random_testing.find_largest_army)
             print("trav:",random_testing.trav)
             print("move_finished:",random_testing.move_finished)
-            print("randomly_pick_ressources:",random_testing.randomly_pick_ressources)
-            print("discard_ressources:",random_testing.discard_ressources)
-            print("trade_ressources:",random_testing.trade_ressources)
+            print("randomly_pick_resources:",random_testing.randomly_pick_resources)
+            print("discard_resources:",random_testing.discard_resources)
+            print("trade_resources:",random_testing.trade_resources)
             print("move_rober:",random_testing.move_rober)
             print("play_knight:",random_testing.play_knight)
             print("steal_card:",random_testing.steal_card)
@@ -1574,9 +1574,9 @@ def main():
             print("successful find_largest_army:",random_testing.successful_find_largest_army)
             print("successful trav:",random_testing.successful_trav)
             print("successful move_finished:",random_testing.successful_move_finished)
-            print("successful randomly_pick_ressources:",random_testing.successful_randomly_pick_ressources)
-            print("successful discard_ressources:",random_testing.successful_discard_ressources)
-            print("successful trade_ressources:",random_testing.successful_trade_ressources)
+            print("successful randomly_pick_resources:",random_testing.successful_randomly_pick_resources)
+            print("successful discard_resources:",random_testing.successful_discard_resources)
+            print("successful trade_resources:",random_testing.successful_trade_resources)
             print("successful move_rober:",random_testing.successful_move_rober)
             print("successful play_knight:",random_testing.successful_play_knight)
             print("successful steal_card:",random_testing.successful_steal_card)
@@ -1599,10 +1599,10 @@ def main():
             print("development cards left", distribution.development_cards_bought)
 
 
-            print("possibility to buy settlement", random_testing.ressources_buy_settlement)
-            print("possibility to buy city", random_testing.ressources_buy_city)
-            print("possibility to buy road", random_testing.ressources_buy_road)
-            print("possibility to buy dc", random_testing.ressources_buy_dc)
+            print("possibility to buy settlement", random_testing.resources_buy_settlement)
+            print("possibility to buy city", random_testing.resources_buy_city)
+            print("possibility to buy road", random_testing.resources_buy_road)
+            print("possibility to buy dc", random_testing.resources_buy_dc)
 
             print("board.tiles_dice",board.tiles_dice)
             print("player.settlements",player.settlements)
@@ -1620,7 +1620,7 @@ def main():
 def action_executor():
     player = players[game.cur_player]
     action = player_action[game.cur_player]
-    keepressources = player_keepressources[game.cur_player]
+    keepresources = player_keepresources[game.cur_player]
     trading = player_trading[game.cur_player]
 
     if game.seven_rolled == 1:
@@ -1631,9 +1631,9 @@ def action_executor():
             action.rober_move[d][e] = 0
             if d < 11 and d >= 0 and e < 21 and e >= 0: 
                 move_rober(d,e)
-                if player.ressource_lumber + player.ressource_wool + player.ressource_grain + player.ressource_brick + player.ressource_ore >= 7:
+                if player.resource_lumber + player.resource_wool + player.resource_grain + player.resource_brick + player.resource_ore >= 7:
                     player.discard_first_time = 1
-                    player.discard_ressources_started = 1
+                    player.discard_resources_started = 1
                 else:
                     steal_card()
                 game.seven_rolled = 0
@@ -1693,7 +1693,7 @@ def action_executor():
                             game.placement_phase_pending = 0
                             game.placement_phase_turns_made = 0
     
-    if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_ressources_started != 1:
+    if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_resources_started != 1:
         random_testing.howmuchisthisaccsessed += 1
         if np.any(action.settlement_place == 1):
             b,c = np.where(action.settlement_place == 1)
@@ -1731,74 +1731,74 @@ def action_executor():
                     
 
             
-    if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_ressources_started != 1:
+    if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_resources_started != 1:
         if action.end_turn == 1:
             move_finished() #need to take a look at this function too
     
-    if player.discard_ressources_started == 1:
+    if player.discard_resources_started == 1:
         a = 0
         b = 0
         c = 0
         d = 0
         e = 0
-        if keepressources.keep_lumber == 1: 
+        if keepresources.keep_lumber == 1: 
             a = 1
-        elif keepressources.keep_wool == 1: 
+        elif keepresources.keep_wool == 1: 
             b = 1
-        elif keepressources.keep_grain == 1: 
+        elif keepresources.keep_grain == 1: 
             c = 1
-        elif keepressources.keep_brick == 1: 
+        elif keepresources.keep_brick == 1: 
             d = 1
-        elif keepressources.keep_ore == 1: 
+        elif keepresources.keep_ore == 1: 
             e = 1
         if a != 0 or b != 0 or c != 0 or d != 0 or e != 0:
-            discard_ressources(a,b,c,d,e)
+            discard_resources(a,b,c,d,e)
     
                     
                 
 
 
-    if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_ressources_started != 1:
+    if player.knight_move_pending != 1 and player.monopoly_move_pending != 1 and player.roadbuilding_move_pending != 1 and player.yearofplenty_move_pending != 1 and game.placement_phase_pending != 1 and player.discard_resources_started != 1:
         if trading.give_lumber_get_wool == 1:
-            trade_ressources(1,2)
+            trade_resources(1,2)
         if trading.give_lumber_get_grain == 1:
-            trade_ressources(1,3)
+            trade_resources(1,3)
         if trading.give_lumber_get_brick == 1:
-            trade_ressources(1,4)
+            trade_resources(1,4)
         if trading.give_lumber_get_ore  == 1:
-            trade_ressources(1,5)
+            trade_resources(1,5)
         if trading.give_wool_get_lumber == 1:
-            trade_ressources(2,1)
+            trade_resources(2,1)
         if trading.give_wool_get_grain == 1:
-            trade_ressources(2,3)
+            trade_resources(2,3)
         if trading.give_wool_get_brick == 1:
-            trade_ressources(2,4)
+            trade_resources(2,4)
         if trading.give_wool_get_ore == 1:
-            trade_ressources(2,5)
+            trade_resources(2,5)
         if trading.give_grain_get_lumber == 1:
-            trade_ressources(3,1)
+            trade_resources(3,1)
         if trading.give_grain_get_wool == 1:
-            trade_ressources(3,2)
+            trade_resources(3,2)
         if trading.give_grain_get_brick == 1:
-            trade_ressources(3,4)
+            trade_resources(3,4)
         if trading.give_grain_get_ore == 1:
-            trade_ressources(3,5)
+            trade_resources(3,5)
         if trading.give_brick_get_lumber == 1:
-            trade_ressources(4,1)
+            trade_resources(4,1)
         if trading.give_brick_get_wool == 1:
-            trade_ressources(4,2)
+            trade_resources(4,2)
         if trading.give_brick_get_grain == 1:
-            trade_ressources(4,3)
+            trade_resources(4,3)
         if trading.give_brick_get_ore == 1:
-            trade_ressources(4,5)
+            trade_resources(4,5)
         if trading.give_ore_get_lumber == 1:
-            trade_ressources(5,1)
+            trade_resources(5,1)
         if trading.give_ore_get_wool == 1:
-            trade_ressources(5,2)
+            trade_resources(5,2)
         if trading.give_ore_get_grain == 1:
-            trade_ressources(5,3)
+            trade_resources(5,3)
         if trading.give_ore_get_brick == 1:
-            trade_ressources(5,4)
+            trade_resources(5,4)
         if action.development_card_buy == 1:
             buy_development_cards()
 
@@ -1875,7 +1875,7 @@ def action_executor():
 def random_assignment():
     player = players[game.cur_player]
     action = player_action[game.cur_player]
-    keepressources = player_keepressources[game.cur_player]
+    keepresources = player_keepresources[game.cur_player]
     trading = player_trading[game.cur_player]
 
     random_agent.random_action = np.random.choice(np.arange(1,46), p=[1/14, 1/14, 1/14, 1/14, 1/14, 1/70, 1/70, 1/70, 1/70, 1/70, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/14, 1/14, 1/14, 1/14, 1/14, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70])
@@ -1889,11 +1889,11 @@ def random_assignment():
     action.city_place = action.city_place * board.ZEROBOARD
     action.end_turn = 0
 
-    keepressources.keep_lumber = 0
-    keepressources.keep_wool = 0
-    keepressources.keep_grain = 0
-    keepressources.keep_brick = 0
-    keepressources.keep_ore = 0
+    keepresources.keep_lumber = 0
+    keepresources.keep_wool = 0
+    keepresources.keep_grain = 0
+    keepresources.keep_brick = 0
+    keepresources.keep_ore = 0
 
     trading.give_lumber_get_wool = 0
     trading.give_lumber_get_grain = 0
@@ -1943,15 +1943,15 @@ def random_assignment():
     if random_agent.random_action == 5:
         action.end_turn = 1
     if random_agent.random_action == 6:    
-        keepressources.keep_lumber = 1
+        keepresources.keep_lumber = 1
     if random_agent.random_action == 7:    
-        keepressources.keep_wool = 1
+        keepresources.keep_wool = 1
     if random_agent.random_action == 8:    
-        keepressources.keep_grain = 1
+        keepresources.keep_grain = 1
     if random_agent.random_action == 9:    
-        keepressources.keep_brick = 1
+        keepresources.keep_brick = 1
     if random_agent.random_action == 10:    
-        keepressources.keep_ore = 1   
+        keepresources.keep_ore = 1   
     if random_agent.random_action == 11:  
         trading.give_lumber_get_wool = 1
     if random_agent.random_action == 12:
