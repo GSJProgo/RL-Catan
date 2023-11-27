@@ -1095,9 +1095,7 @@ def discard_resources(lumber, wool, grain, brick, ore):
             player.discard_resources_ore -= 1 
             player.discard_resources_turn += 1
 
-    if player.discard_resources_turn == 4:
-        for i in range(0,math.ceil(player.total_resources/2)-4,1):
-            randomly_pick_resources()
+    if player.discard_resources_turn == math.ceil(player.total_resources/2):
         player.discard_resources_lumber = 0
         player.discard_resources_wool = 0
         player.discard_resources_grain = 0
@@ -1107,43 +1105,6 @@ def discard_resources(lumber, wool, grain, brick, ore):
         player.discard_resources_started = 0
         random_testing.successful_discard_resources += 1
         steal_card()
-        
-
-    
-
-def randomly_pick_resources():
-    random_testing.randomly_pick_resources += 1
-
-    #this is a mixture and not correct
-    player = players[game.cur_player]
-    possible_resources_left = np.ones((5)) #if there are still one of those resources available after picking the first four
-    if player.discard_resources_lumber != 0:
-        possible_resources_left[0] = 1
-    if player.discard_resources_wool != 0:
-        possible_resources_left[1] = 1
-    if player.discard_resources_grain != 0:
-        possible_resources_left[2] = 1
-    if player.discard_resources_brick != 0:
-        possible_resources_left[3] = 1
-    if player.discard_resources_ore != 0:
-        possible_resources_left[4] = 1
-    
-    numbers = np.random.choice(np.arange(1,6),p = [possible_resources_left[0]/possible_resources_left.sum(),possible_resources_left[1]/possible_resources_left.sum(),possible_resources_left[2]/possible_resources_left.sum(),possible_resources_left[3]/possible_resources_left.sum(),possible_resources_left[4]/possible_resources_left.sum()])
-    if numbers == 1:
-        player.resource_lumber += 1 
-        player.discard_resources_lumber -= 1 
-    elif numbers == 2:
-        player.resource_brick += 1 
-        player.discard_resources_brick -= 1 
-    elif numbers == 3:
-        player.resource_wool += 1 
-        player.discard_resources_wool -= 1 
-    elif numbers == 4:
-        player.resource_grain += 1 
-        player.discard_resources_grain -= 1 
-    elif numbers == 5:
-        player.resource_ore += 1 
-        player.discard_resources_ore -= 1 
 
 
 def longest_road(i, j, prev_move):
