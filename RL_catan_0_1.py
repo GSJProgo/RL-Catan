@@ -11,6 +11,10 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+#plotting
+import wandb 
+import plotly.graph_objects as go
+wandb.init(project="RL-Catan", name="RL_version_0.0.2", config={})
 import os
 
 _NUM_ROWS = 11
@@ -127,6 +131,7 @@ class Player:
 
         self.knight_cards_played = 0
 
+        self.victorypoints_before = 0
         self.victorypoints = 0
 
         self.development_card_played = 0
@@ -160,6 +165,10 @@ class Player:
 
         self.roadbuilding_d = 0
         self.roadbuilding_e = 0
+
+        self.wins = 0
+
+
 
     
     class Action: 
@@ -324,6 +333,9 @@ class Random_Testing:
 class Game: 
     def __init__(self):
         self.cur_player = 0
+
+        self.cur_agent = 0
+
         self.is_finished = 0
         self.settlementplaced = 0
         self.placement_phase_pending = 0
@@ -337,9 +349,13 @@ class Game:
         self.placement_phase_settlement_coordinate1 = 0
         self.placement_phase_settlement_coordinate2 = 0
 
+
 class Phase():
     def __init__(self):
         self.development_card_played = 0
+        self.reward = 0
+        self.statechange = 0
+        self.statechangecount = 0
 
 
 random_testing = Random_Testing()
@@ -362,7 +378,16 @@ player_trading = [player0_trading, player1_trading]
 
 random_agent = Random()
 
+call_counts = {}
 
+def count_calls(func):
+    def wrapper(*args, **kwargs):
+        call_counts[func.__name__] = call_counts.get(func.__name__, 0) + 1
+        return func(*args, **kwargs)
+    return wrapper
+
+
+@count_calls
 def harbors_building():
     # Define harbor locations
 
@@ -375,17 +400,20 @@ def harbors_building():
     board.harbors_possible[6] = [[10,10],[10,12]]
     board.harbors_possible[7] = [[8,16],[8,18]]
     board.harbors_possible[8] = [[4,20],[6,20]]
-    
+
+@count_calls  
 def tiles_buidling():
     for i in range(1,10,2):
         for j in range(2 + abs(5-i),20 - abs(5-i),4):
             board.TILES_POSSIBLE[i][j] = 1
 
+@count_calls
 def settlements_building():
     for i in range(0,11,2):
         for j in range(-1 + abs(5-i),23 - abs(5-i),2):
             board.settlements_available[i][j] = 1  
 
+@count_calls
 def roads_building():
     for i in range(0,10,1):
         for j in range(0,20,1):
@@ -399,7 +427,8 @@ def roads_building():
                 board.roads_available[i+1][j] = 1
 
     board.roads_available = board.roads_available*(1-board.TILES_POSSIBLE)
-            
+
+@count_calls          
 def tile_distribution():
     a = 0
     for i in range (1,11,1):
@@ -418,7 +447,8 @@ def tile_distribution():
                 elif distribution.tile_random_numbers[a-1] == 5:
                     board.tiles_ore[i][j] = 1
                 a += 1 
-            
+
+@count_calls          
 def harbor_distribution():
     for i in range(0,9,1):
         x1 = int(board.harbors_possible[i][0][0])
@@ -444,7 +474,8 @@ def harbor_distribution():
         elif distribution.harbor_random_numbers[i] == 6:
             board.harbor_three_one[x1][y1] = 1
             board.harbor_three_one[x2][y2] = 1
-            
+
+@count_calls        
 def plate_distribution():
     a = 0
     for i in range (1,11,1):
@@ -465,6 +496,7 @@ def plate_distribution():
                     board.tiles_probability_5[i][j] = 1
                 a += 1
 
+@count_calls
 def development_card_choose():
     random_testing.development_card_choose += 1
     player = players[game.cur_player]
@@ -486,6 +518,7 @@ def development_card_choose():
 
     return 1
 
+@count_calls
 def tile_update_rewards(a,b):
     random_testing.tile_update_rewards += 1
     player = players[game.cur_player]
@@ -509,7 +542,7 @@ def tile_update_rewards(a,b):
         player.rewards_possible[x][y] += 1
     
 
-
+@count_calls
 def settlement_place(a,b):
     random_testing.settlement_place += 1
     player = players[game.cur_player]
@@ -522,9 +555,11 @@ def settlement_place(a,b):
             tile_update_rewards(a,b)
             player.victorypoints += 1
             random_testing.successful_settlement_place += 1
+            phase.statechange = 1
             return 1 
         return 0
 
+@count_calls
 def settlement_place_placement(a,b):
     random_testing.settlement_place_placement += 1
     player = players[game.cur_player]
@@ -534,9 +569,11 @@ def settlement_place_placement(a,b):
         player.settlements[a][b] = 1
         tile_update_rewards(a,b)
         player.victorypoints += 1
+        phase.statechange = 1
         return 1 
     return 0
 
+@count_calls
 def settlement_possible_check(a,b,c):
     random_testing.settlement_possible_check += 1
 
@@ -597,7 +634,8 @@ def settlement_possible_check(a,b,c):
         else: 
             return 0
     return 1
-                      
+
+@count_calls                     
 def road_place(a,b):
 
     random_testing.road_place += 1
@@ -610,8 +648,11 @@ def road_place(a,b):
             player.roads_left -= 1
             update_longest_road()
             random_testing.successful_road_place += 1
+            phase.statechange = 1
             return 1 
     return 0
+
+@count_calls
 def road_place_card(a,b,c,d):
     player = players[game.cur_player]
     if a == c and b == d:
@@ -628,8 +669,11 @@ def road_place_card(a,b,c,d):
             update_longest_road()
             player.roadbuilding_cards_old -= 1
             random_testing.successful_road_place += 1
+            phase.statechange = 1
             return 1 
     return 0
+
+@count_calls
 def road_place_placement(settlement_a,settlement_b,road_a,road_b):
     random_testing.road_place_placement += 1
     player = players[game.cur_player]
@@ -637,8 +681,11 @@ def road_place_placement(settlement_a,settlement_b,road_a,road_b):
         player.roads[road_a][road_b] = 1
         player.roads_left -= 1
         update_longest_road()
+        phase.statechange = 1
         return 1 
     return 0
+
+@count_calls
 def road_possible_check(a,b):
     random_testing.road_possible_check += 1
 
@@ -676,6 +723,7 @@ def road_possible_check(a,b):
                 return 1 
     return 0 
 
+@count_calls
 def city_place(a,b):
     random_testing.city_place += 1
     #still need to add a max cities check, the same comes to settlements
@@ -689,9 +737,11 @@ def city_place(a,b):
             tile_update_rewards(a,b)
             player.victorypoints += 1
             random_testing.successful_city_place += 1
+            phase.statechange = 1
             return 1
         return 0 
 
+@count_calls
 def roll_dice(): 
     random_testing.roll_dice += 1
     roll = np.random.choice(np.arange(2, 13), p=[1/36,2/36,3/36,4/36,5/36,6/36,5/36,4/36,3/36,2/36,1/36])
@@ -725,6 +775,7 @@ def roll_dice():
                         player1.resource_ore += player1.rewards_possible[i][j]
     return roll
 
+@count_calls
 def buy_development_cards():
     random_testing.buy_development_cards += 1
     player = players[game.cur_player]
@@ -736,11 +787,12 @@ def buy_development_cards():
             player.resource_wool -= 1
             player.resource_grain -= 1 
             player.resource_ore -= 1 
+            phase.statechange = 1
             return 1
     return 0 
         
 
-
+@count_calls
 def buy_road(a,b):
     random_testing.buy_road += 1
     possible = 0
@@ -750,10 +802,11 @@ def buy_road(a,b):
             if possible == 1:
                 player.resource_brick -= 1
                 player.resource_lumber -= 1
+                phase.statechange = 1
                 return 1
     return 0 
 
-
+@count_calls
 def buy_settlement(a,b):
     random_testing.buy_settlement += 1
     player = players[game.cur_player]
@@ -766,9 +819,11 @@ def buy_settlement(a,b):
             player.resource_brick -= 1
             player.resource_wool -= 1 
             player.resource_grain -= 1
+            phase.statechange = 1
             return 1 
     return 0 
-            
+
+@count_calls          
 def buy_city(a,b):
     random_testing.buy_city += 1
     player = players[game.cur_player]
@@ -778,9 +833,11 @@ def buy_city(a,b):
         if possible == 1:
             player.resource_grain -= 2
             player.resource_ore -= 3  
+            phase.statechange = 1
             return 1
     return 0 
 
+@count_calls
 def steal_card():
     random_testing.steal_card += 1
     player = players[game.cur_player]
@@ -806,7 +863,7 @@ def steal_card():
             player.resource_ore = player.resource_ore + 1
         random_testing.steal_card += 1
 
-
+@count_calls
 def play_knight(a,b):
     random_testing.play_knight += 1
     player = players[game.cur_player]
@@ -817,18 +874,22 @@ def play_knight(a,b):
             steal_card()
             player.knight_cards_old -= 1
             player.knight_cards_played += 1
+            phase.statechange = 1
             return 1
     return 0
 
+@count_calls
 def move_rober(a,b):
     random_testing.move_rober += 1
     if board.rober_position[a][b] != 1 and board.TILES_POSSIBLE[a][b] == 1:
         board.rober_position = board.rober_position * board.ZEROBOARD
         board.rober_position[a][b] = 1
         random_testing.successful_move_rober += 1
+        phase.statechange = 1
         return 1
     return 0
 
+@count_calls
 def activate_yearofplenty_func(resource1,resource2):
     random_testing.activate_yearofplenty_func += 1
     #need to take a look at this later. I'm not sure how to comvert those resources. 
@@ -858,9 +919,11 @@ def activate_yearofplenty_func(resource1,resource2):
         elif resource2 == 5:
             player.resource_ore = player.resource_ore + 1
         random_testing.successful_activate_yearofplenty_func += 1
+        phase.statechange = 1
         return 1 
     return 0 
 
+@count_calls
 def activate_monopoly_func(resource):
     random_testing.activate_monopoly_func += 1
     player = players[game.cur_player]
@@ -883,9 +946,11 @@ def activate_monopoly_func(resource):
             player.resource_ore = player.resource_ore + opponent.resource_ore
             opponent.resource_ore = 0
         random_testing.successful_activate_monopoly_func += 1
+        phase.statechange = 1
         return 1
     return 0
-    
+
+@count_calls  
 def activate_road_building_func(a1,b1,a2,b2):
     random_testing.activate_road_building_func += 1
     player = players[game.cur_player]
@@ -898,13 +963,15 @@ def activate_road_building_func(a1,b1,a2,b2):
                 road_place(a2,b2)
                 player.roadbuilding_cards_old = player.roadbuilding_cards_old - 1
                 random_testing.successful_activate_road_building_func += 1
+                phase.statechange = 1
                 return 1
             else: 
                 player.roads[a1][b1] = 0
     return 0
     
+@count_calls
 def trade_resources(give, get):
-
+    a = 0
     random_testing.trade_resources += 1
     player = players[game.cur_player]
     if give == 1 and (board.harbor_lumber * player.settlements + board.harbor_lumber * player.cities).any() != 0:
@@ -1063,9 +1130,13 @@ def trade_resources(give, get):
             player.resource_grain += 1
         elif get == 4:
             player.resource_brick += 1
+    else:
+        a = 1
 
 
+@count_calls
 def discard_resources(lumber, wool, grain, brick, ore):
+    
     random_testing.discard_resources += 1
     player = players[game.cur_player]
     if player.discard_first_time == 1:
@@ -1087,26 +1158,31 @@ def discard_resources(lumber, wool, grain, brick, ore):
             player.resource_lumber += 1
             player.discard_resources_lumber -= 1 
             player.discard_resources_turn += 1
+            phase.statechange = 1
     elif wool == 1:
         if player.discard_resources_wool != 0:
             player.resource_wool += 1
             player.discard_resources_wool -= 1
             player.discard_resources_turn += 1
+            phase.statechange = 1
     elif grain == 1:
         if player.discard_resources_grain != 0:
             player.resource_grain += 1
             player.discard_resources_grain -= 1 
             player.discard_resources_turn += 1
+            phase.statechange = 1
     elif brick == 1:
         if player.discard_resources_brick != 0:
             player.resource_brick += 1
             player.discard_resources_brick -= 1 
             player.discard_resources_turn += 1
+            phase.statechange = 1
     elif ore == 1:
         if player.discard_resources_ore != 0:
             player.resource_ore += 1
             player.discard_resources_ore -= 1 
             player.discard_resources_turn += 1
+            phase.statechange = 1
 
     if player.discard_resources_turn == math.ceil(player.total_resources/2):
         player.discard_resources_lumber = 0
@@ -1119,7 +1195,7 @@ def discard_resources(lumber, wool, grain, brick, ore):
         random_testing.successful_discard_resources += 1
         steal_card()
 
-
+@count_calls
 def longest_road(i, j, prev_move):
     random_testing.trav += 1
     n = 11 
@@ -1150,7 +1226,7 @@ def longest_road(i, j, prev_move):
     max_length = max(longest_road(x, y, (i, j)) for x, y in moves)
     return 1 + max_length
     
-
+@count_calls
 def find_longest_road():
     random_testing.find_longest_road += 1
     player = players[game.cur_player]
@@ -1163,6 +1239,7 @@ def find_longest_road():
                 ans = max(ans,c)
     return ans
  
+@count_calls
 def update_longest_road():
     player = players[game.cur_player]
     opponent = players[game.cur_player]
@@ -1174,6 +1251,7 @@ def update_longest_road():
         player.longest_road = 1
         player.victorypoints += 2
 
+@count_calls
 def find_largest_army():
     random_testing.find_largest_army += 1
     player = players[game.cur_player]
@@ -1185,9 +1263,14 @@ def find_largest_army():
         player.largest_army = 1
         player.victorypoints += 2
     
+@count_calls
 def move_finished():
     random_testing.move_finished += 1
     player = players[game.cur_player]
+    phase.reward += 0.0001
+    phase.statechange = 1
+
+    print("move finished")
 
     player.knight_cards_old += player.knight_cards_new
     player.victorypoints_cards_old += player.victorypoints_cards_new
@@ -1204,15 +1287,27 @@ def move_finished():
     phase.development_card_played = 0
 
     random_testing.numberofturns += 1
+
+    phase.reward = ((player0.victorypoints - player1.victorypoints) - (player0.victorypoints_before - player1.victorypoints_before))*0.02
+    player0.victorypoints_before = player0.victorypoints
+    player1.victorypoints_before = player1.victorypoints
     
     if player.victorypoints >= 10:
+        if game.cur_player == 0: 
+            phase.reward = 1  
+            player0.wins += 1
+        else: 
+            phase.reward = -1
+            player1.wins += 1
         random_testing.numberofgames += 1
+        game.is_finished = 1
         new_game()
 
     game.cur_player = 1 - game.cur_player
     if game.placement_phase_pending != 1:
         turn_starts()
 
+@count_calls
 def new_initial_state():
 
 #_______________________input_________________________
@@ -1346,7 +1441,6 @@ def new_initial_state():
         player.roadbuilding_d = 0
         player.roadbuilding_e = 0
 
-    game.cur_player = 0
     game.is_finished = 0
     game.settlementplaced = 0
     game.placement_phase_pending = 0
@@ -1401,170 +1495,175 @@ def new_game():
     setup()
     game.placement_phase_pending = 1
     game.placement_phase_settlement_turn = 1
+
+
 def main():
     start()
     new_game()
-    z = 0
-    for i in range (10000000):
-        player = players[game.cur_player]
-        opponent = players[1 - game.cur_player]
-        random_assignment()
-        action_executor()    
-
-        random_testing.resource_lumber_total += player0.resource_lumber
-        random_testing.resource_wool_total += player0.resource_wool
-        random_testing.resource_grain_total += player0.resource_grain
-        random_testing.resource_brick_total += player0.resource_brick
-        random_testing.resource_ore_total += player0.resource_ore
-
-
-
-        if i % 100000 == 0:
-
-
-            player = players[game.cur_player]
-            opponent = players[1-game.cur_player]
-            print(i)
-            print("number of games:",random_testing.numberofgames)
-            print("number of turns:",random_testing.numberofturns)
-
-            print("placement phase done", game.placement_phase_pending - 1)
-
-            print("number of victorypoints player0", player0.victorypoints)
-            print("number of victorypoints player1", player1.victorypoints)
-
-            print("lumber player 0:", player0.resource_lumber)
-            print("wool player 0:", player0.resource_wool)
-            print("grain player 0:", player0.resource_grain)
-            print("brick player 0:", player0.resource_brick)
-            print("ore player 0:", player0.resource_ore)
-
-            print("lumber player 1:", player1.resource_lumber)
-            print("wool player 1:", player1.resource_wool)
-            print("grain player 1:", player1.resource_grain)
-            print("brick player 1:", player1.resource_brick)
-            print("ore player 1:", player1.resource_ore)
-
-            print(random_testing.resource_lumber_total)
-            print(random_testing.resource_wool_total)
-            print(random_testing.resource_grain_total)
-            print(random_testing.resource_brick_total)
-            print(random_testing.resource_ore_total)
-        if i % 10000 == 0:
-            if player.knight_move_pending == 1:
-                print("knight move is pending")
-            if player.monopoly_move_pending == 1:
-                print("monopoly move is pending")
-            if player.roadbuilding_move_pending == 1:
-                print("roadbuilding move is pending")
-            if player.yearofplenty_move_pending == 1:
-                print("yearofplenty move is pending")
-            if player.discard_resources_started == 1:
-                print("discard_resources move is pending")
-            if opponent.knight_move_pending == 1:
-                print("knight move is pending")
-            if opponent.monopoly_move_pending == 1:
-                print("monopoly move is pending")
-            if opponent.roadbuilding_move_pending == 1:
-                print("roadbuilding move is pending")
-            if opponent.yearofplenty_move_pending == 1:
-                print("yearofplenty move is pending")
-            if opponent.discard_resources_started == 1:
-                print("discard_resources move is pending")
-        if i % 100000 == 0:
-
-            print(opponent.roadbuilding_move_pending,player.roadbuilding_move_pending)
-            print("development_card_choose:",random_testing.development_card_choose)
-            print("settlement_place:",random_testing.settlement_place)
-            print("settlement_place_placement:",random_testing.settlement_place_placement)
-            print("settlement_possible_check:",random_testing.settlement_possible_check)
-            print("buy_settlement:",random_testing.buy_settlement)
-            print("development_card_choose:",random_testing.development_card_choose)
-            print("buy_development_cards:",random_testing.buy_development_cards)
-            print("buy_city:",random_testing.buy_city)
-            print("city_place:",random_testing.city_place)
-            print("road_place:",random_testing.road_place)
-            print("road_place_placement:",random_testing.road_place_placement)
-            print("road_possible_check:",random_testing.road_possible_check)
-            print("buy_road:",random_testing.buy_road)
-            print("activate_road_building_func:",random_testing.activate_road_building_func)
-            print("activate_monopoly_func:",random_testing.activate_monopoly_func)
-            print("activate_yearofplenty_func:",random_testing.activate_yearofplenty_func)
-            print("tile_update_rewards:",random_testing.tile_update_rewards)
-            print("update_longest_road:",random_testing.update_longest_road)
-            print("find_longest_road:",random_testing.find_longest_road)
-            print("check_longest_road:",random_testing.check_longest_road)
-            print("find_largest_army:",random_testing.find_largest_army)
-            print("trav:",random_testing.trav)
-            print("move_finished:",random_testing.move_finished)
-            print("randomly_pick_resources:",random_testing.randomly_pick_resources)
-            print("discard_resources:",random_testing.discard_resources)
-            print("trade_resources:",random_testing.trade_resources)
-            print("move_rober:",random_testing.move_rober)
-            print("play_knight:",random_testing.play_knight)
-            print("steal_card:",random_testing.steal_card)
-            print("roll_dice:",random_testing.roll_dice)
-
-            print("successful settlement_place:",random_testing.successful_settlement_place)
-            print("successful buy_city:",random_testing.successful_buy_city)
-            print("successful city_place:",random_testing.successful_city_place)
-            print("successful road_place:",random_testing.successful_road_place)
-            print("successful road_place_placement:",random_testing.successful_road_place_placement)
-            print("successful road_possible_check:",random_testing.successful_road_possible_check)
-            print("successful buy_road:",random_testing.successful_buy_road)
-            print("successful activate_road_building_func:",random_testing.successful_activate_road_building_func)
-            print("successful activate_monopoly_func:",random_testing.successful_activate_monopoly_func)
-            print("successful activate_yearofplenty_func:",random_testing.successful_activate_yearofplenty_func)
-            print("successful tile_update_rewards:",random_testing.successful_tile_update_rewards)
-            print("successful update_longest_road:",random_testing.successful_update_longest_road)
-            print("successful find_longest_road:",random_testing.successful_find_longest_road)
-            print("successful check_longest_road:",random_testing.successful_check_longest_road)
-            print("successful find_largest_army:",random_testing.successful_find_largest_army)
-            print("successful trav:",random_testing.successful_trav)
-            print("successful move_finished:",random_testing.successful_move_finished)
-            print("successful randomly_pick_resources:",random_testing.successful_randomly_pick_resources)
-            print("successful discard_resources:",random_testing.successful_discard_resources)
-            print("successful trade_resources:",random_testing.successful_trade_resources)
-            print("successful move_rober:",random_testing.successful_move_rober)
-            print("successful play_knight:",random_testing.successful_play_knight)
-            print("successful steal_card:",random_testing.successful_steal_card)
-            print("successful roll_dice:",random_testing.successful_roll_dice)
-
-            print("This is the most important thing", random_testing.howmuchisthisaccsessed)
-            random_testing.howmuchisthisaccsessed = 0
-            print("Something is deinetly not working correctly", z)
-            print("")
-            print("player cities left", player.cities_left)
-            print("opponent cities left", opponent.cities_left)
-            print("")
-            print("player settlements left", player.settlements_left)
-            print("opponent settlements left", opponent.settlements_left)
-            print("")
-            print("player roads left", player.roads_left)
-            print("opponent roads left", opponent.roads_left)
-            print("")
-
-            print("development cards left", distribution.development_cards_bought)
-
-
-            print("possibility to buy settlement", random_testing.resources_buy_settlement)
-            print("possibility to buy city", random_testing.resources_buy_city)
-            print("possibility to buy road", random_testing.resources_buy_road)
-            print("possibility to buy dc", random_testing.resources_buy_dc)
-
-            print("board.tiles_dice",board.tiles_dice)
-            print("player.settlements",player.settlements)
-            print("opponent.settlements",opponent.settlements)
-            print("player.cities",player.cities)
-            print("opponent.cities",opponent.cities)
-            print("player.rewards_possible",player.rewards_possible)
-            print("opponent.rewards_possible",opponent.rewards_possible)
-            print("player.roads",player.roads)
+#def random_main():
+#    start()
+#    new_game()
+#    z = 0
+#    for i in range (10000000):
+#        player = players[game.cur_player]
+#        opponent = players[1 - game.cur_player]
+#        random_assignment()
+#        action_executor()    
+#
+#        random_testing.resource_lumber_total += player0.resource_lumber
+#        random_testing.resource_wool_total += player0.resource_wool
+#        random_testing.resource_grain_total += player0.resource_grain
+#        random_testing.resource_brick_total += player0.resource_brick
+#        random_testing.resource_ore_total += player0.resource_ore
+#
+#
+#
+#        if i % 100000 == 0:
+#
+#
+#            player = players[game.cur_player]
+#            opponent = players[1-game.cur_player]
+#            print(i)
+#            print("number of games:",random_testing.numberofgames)
+#            print("number of turns:",random_testing.numberofturns)
+#
+#            print("placement phase done", game.placement_phase_pending - 1)
+#
+#            print("number of victorypoints player0", player0.victorypoints)
+#            print("number of victorypoints player1", player1.victorypoints)
+#
+#            print("lumber player 0:", player0.resource_lumber)
+#            print("wool player 0:", player0.resource_wool)
+#            print("grain player 0:", player0.resource_grain)
+#            print("brick player 0:", player0.resource_brick)
+#            print("ore player 0:", player0.resource_ore)
+#
+#            print("lumber player 1:", player1.resource_lumber)
+#            print("wool player 1:", player1.resource_wool)
+#            print("grain player 1:", player1.resource_grain)
+#            print("brick player 1:", player1.resource_brick)
+#            print("ore player 1:", player1.resource_ore)
+#
+#            print(random_testing.resource_lumber_total)
+#            print(random_testing.resource_wool_total)
+#            print(random_testing.resource_grain_total)
+#            print(random_testing.resource_brick_total)
+#            print(random_testing.resource_ore_total)
+#        if i % 10000 == 0:
+#            if player.knight_move_pending == 1:
+#                print("knight move is pending")
+#            if player.monopoly_move_pending == 1:
+#                print("monopoly move is pending")
+#            if player.roadbuilding_move_pending == 1:
+#                print("roadbuilding move is pending")
+#            if player.yearofplenty_move_pending == 1:
+#                print("yearofplenty move is pending")
+#            if player.discard_resources_started == 1:
+#                print("discard_resources move is pending")
+#            if opponent.knight_move_pending == 1:
+#                print("knight move is pending")
+#            if opponent.monopoly_move_pending == 1:
+#                print("monopoly move is pending")
+#            if opponent.roadbuilding_move_pending == 1:
+#                print("roadbuilding move is pending")
+#            if opponent.yearofplenty_move_pending == 1:
+#                print("yearofplenty move is pending")
+#            if opponent.discard_resources_started == 1:
+#                print("discard_resources move is pending")
+#        if i % 100000 == 0:
+#
+#            print(opponent.roadbuilding_move_pending,player.roadbuilding_move_pending)
+#            print("development_card_choose:",random_testing.development_card_choose)
+#            print("settlement_place:",random_testing.settlement_place)
+#            print("settlement_place_placement:",random_testing.settlement_place_placement)
+#            print("settlement_possible_check:",random_testing.settlement_possible_check)
+#            print("buy_settlement:",random_testing.buy_settlement)
+#            print("development_card_choose:",random_testing.development_card_choose)
+#            print("buy_development_cards:",random_testing.buy_development_cards)
+#            print("buy_city:",random_testing.buy_city)
+#            print("city_place:",random_testing.city_place)
+#            print("road_place:",random_testing.road_place)
+#            print("road_place_placement:",random_testing.road_place_placement)
+#            print("road_possible_check:",random_testing.road_possible_check)
+#            print("buy_road:",random_testing.buy_road)
+#            print("activate_road_building_func:",random_testing.activate_road_building_func)
+#            print("activate_monopoly_func:",random_testing.activate_monopoly_func)
+#            print("activate_yearofplenty_func:",random_testing.activate_yearofplenty_func)
+#            print("tile_update_rewards:",random_testing.tile_update_rewards)
+#            print("update_longest_road:",random_testing.update_longest_road)
+#            print("find_longest_road:",random_testing.find_longest_road)
+#            print("check_longest_road:",random_testing.check_longest_road)
+#            print("find_largest_army:",random_testing.find_largest_army)
+#            print("trav:",random_testing.trav)
+#            print("move_finished:",random_testing.move_finished)
+#            print("randomly_pick_resources:",random_testing.randomly_pick_resources)
+#            print("discard_resources:",random_testing.discard_resources)
+#            print("trade_resources:",random_testing.trade_resources)
+#            print("move_rober:",random_testing.move_rober)
+#            print("play_knight:",random_testing.play_knight)
+#            print("steal_card:",random_testing.steal_card)
+#            print("roll_dice:",random_testing.roll_dice)
+#
+#            print("successful settlement_place:",random_testing.successful_settlement_place)
+#            print("successful buy_city:",random_testing.successful_buy_city)
+#            print("successful city_place:",random_testing.successful_city_place)
+#            print("successful road_place:",random_testing.successful_road_place)
+#            print("successful road_place_placement:",random_testing.successful_road_place_placement)
+#            print("successful road_possible_check:",random_testing.successful_road_possible_check)
+#            print("successful buy_road:",random_testing.successful_buy_road)
+#            print("successful activate_road_building_func:",random_testing.successful_activate_road_building_func)
+#            print("successful activate_monopoly_func:",random_testing.successful_activate_monopoly_func)
+#            print("successful activate_yearofplenty_func:",random_testing.successful_activate_yearofplenty_func)
+#            print("successful tile_update_rewards:",random_testing.successful_tile_update_rewards)
+#            print("successful update_longest_road:",random_testing.successful_update_longest_road)
+#            print("successful find_longest_road:",random_testing.successful_find_longest_road)
+#            print("successful check_longest_road:",random_testing.successful_check_longest_road)
+#            print("successful find_largest_army:",random_testing.successful_find_largest_army)
+#            print("successful trav:",random_testing.successful_trav)
+#            print("successful move_finished:",random_testing.successful_move_finished)
+#            print("successful randomly_pick_resources:",random_testing.successful_randomly_pick_resources)
+#            print("successful discard_resources:",random_testing.successful_discard_resources)
+#            print("successful trade_resources:",random_testing.successful_trade_resources)
+#            print("successful move_rober:",random_testing.successful_move_rober)
+#            print("successful play_knight:",random_testing.successful_play_knight)
+#            print("successful steal_card:",random_testing.successful_steal_card)
+#            print("successful roll_dice:",random_testing.successful_roll_dice)
+#
+#            print("This is the most important thing", random_testing.howmuchisthisaccsessed)
+#            random_testing.howmuchisthisaccsessed = 0
+#            print("Something is deinetly not working correctly", z)
+#            print("")
+#            print("player cities left", player.cities_left)
+#            print("opponent cities left", opponent.cities_left)
+#            print("")
+#            print("player settlements left", player.settlements_left)
+#            print("opponent settlements left", opponent.settlements_left)
+#            print("")
+#            print("player roads left", player.roads_left)
+#            print("opponent roads left", opponent.roads_left)
+#            print("")
+#
+#            print("development cards left", distribution.development_cards_bought)
+#
+#
+#            print("possibility to buy settlement", random_testing.resources_buy_settlement)
+#            print("possibility to buy city", random_testing.resources_buy_city)
+#            print("possibility to buy road", random_testing.resources_buy_road)
+#            print("possibility to buy dc", random_testing.resources_buy_dc)
+#
+#            print("board.tiles_dice",board.tiles_dice)
+#            print("player.settlements",player.settlements)
+#            print("opponent.settlements",opponent.settlements)
+#            print("player.cities",player.cities)
+#            print("opponent.cities",opponent.cities)
+#            print("player.rewards_possible",player.rewards_possible)
+#            print("opponent.rewards_possible",opponent.rewards_possible)
+#            print("player.roads",player.roads)
 
         
+main()
 
-
-
+@count_calls
 def action_executor():
     player = players[game.cur_player]
     action = player_action[game.cur_player]
@@ -1620,9 +1719,12 @@ def action_executor():
                 b,c = np.where(action.road_place == 1)
                 d = int(b)
                 e = int(c)
+                print(d,e)
+                print("works")
                 if d < 11 and d >= 0 and e < 21 and e >= 0: 
                     possible = road_place_placement(game.placement_phase_settlement_coordinate1,game.placement_phase_settlement_coordinate2,d,e)
                     if possible == 1:
+                        print("road_place_placement")
                         game.placement_phase_road_turn = 0
                         game.placement_phase_settlement_turn = 1
                         game.placement_phase_turns_made += 1
@@ -1666,6 +1768,7 @@ def action_executor():
     if game.placement_phase_pending == 1:
         if game.placement_phase_settlement_turn == 1:
             if np.any(action.settlement_place == 1):
+                print("settlement_place")
                 b,c = np.where(action.settlement_place == 1)
                 d = int(b)
                 e = int(c)
@@ -1972,14 +2075,17 @@ def action_selecter(selected_action, selected_position_x = 0, selected_position_
         action.monopoly_brick = 1
     if selected_action == 45:
         action.monopoly_ore = 1      
+
+    action_executor()
         
           
 
 
-def input_changer():
+def state_changer():
     player = players[game.cur_player]
     opponent = players[1 - game.cur_player]
-    np_board_tensor = np.stack(
+    #23
+    np_board_tensor = np.stack((
         board.rober_position,
         board.tiles_lumber,
         board.tiles_wool,
@@ -2003,8 +2109,9 @@ def input_changer():
         player1.cities,
         player0.roads,
         player1.roads,
-    )
-    np_vector_tensor = np.stack(
+    ))
+    #35
+    np_vector_tensor = np.stack((
         player.victorypoints,
         player.resource_lumber,
         player.resource_wool,
@@ -2040,7 +2147,7 @@ def input_changer():
         player.roadbuilding_move_pending,
         player.yearofplenty_move_pending,
         player.discard_resources_started,
-    )
+    ))
     torch_board_tensor = torch.from_numpy(np_board_tensor)
     torch_vector_tensor = torch.from_numpy(np_vector_tensor)
     return torch_board_tensor, torch_vector_tensor
@@ -2050,7 +2157,7 @@ def input_changer():
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))
+Transition = namedtuple('Transition', ('cur_boardstate','cur_vectorstate', 'action', 'next_boardstate','next_vectorstate', 'reward'))
 
 torch.set_printoptions(precision=5)
 
@@ -2070,13 +2177,17 @@ class ReplayMemory(object):
         return len(self.memory)
     
 
-
-class DQN(nn.Module):
-    def __init__(self, num_hidden = 32, num_resBlocks = 12):
+class PrintShape(nn.Module):
+    def forward(self, x):
+        print(x.shape)
+        return x
+    
+class BIGDQN(nn.Module):
+    def __init__(self, num_resBlocks = 12):
         super().__init__()
 
         self.denselayer = nn.Sequential(
-            nn.Linear(39,256),
+            nn.Linear(35,256),
             nn.ReLU(),
             nn.Linear(256,128),
             nn.ReLU(),
@@ -2093,19 +2204,17 @@ class DQN(nn.Module):
         
 
         self.ConvScalar = nn.Sequential(
-            nn.Conv2d(17,34,kernel_size=(5,3),padding=0,stride=(2,2)),
-            nn.BatchNorm2d(34),
+            nn.Conv2d(23,46,kernel_size=(5,3),padding=0,stride=(2,2)),
+            nn.BatchNorm2d(46),
             nn.ReLU(),
-            nn.Conv2d(34,17,kernel_size=3,padding=1),
-            nn.BatchNorm2d(17),
+            nn.Conv2d(46,20,kernel_size=3,padding=1),
+            nn.BatchNorm2d(20),
             nn.ReLU(),
-            nn.Conv2d(17,10, kernel_size=3,padding=1),
+            nn.Conv2d(20,10, kernel_size=3,padding=1),
             nn.BatchNorm2d(10),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(10*9*10, 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(400, 256),
             nn.ReLU(),
             nn.Linear(256, 128),
             nn.ReLU(),
@@ -2118,37 +2227,110 @@ class DQN(nn.Module):
 
         #quite a lot of features, hope that this works
         self.ConvCombine = nn.Sequential(
-            nn.Conv2d(17,34,kernel_size = 1, padding=0),
-            nn.BatchNorm2d(34),
+            nn.Conv2d(23,46,kernel_size = 1, padding=0),
+            nn.BatchNorm2d(46),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(34*21*21, 2048),
+            nn.Linear(46*11*21, 2048),
             nn.ReLU(),
             nn.Linear(2048, 1024),
             nn.ReLU(),
-            nn.Linear(1024, 1024),            
+            nn.Linear(1024, 512),            
             #combine the last layer of DenseConv with the last one of ConvCombine
         )
 
         self.ConvCombineFinal = nn.Sequential(
-            nn.Linear(2048,2048),
+            nn.Linear(1024,1024),
             nn.ReLU(),
-            nn.Linear(2048,2048),
+            nn.Linear(1024,1024),
             nn.ReLU(),
-            nn.Linear(2048,21*21*4),
+            nn.Linear(1024,11*21*4),
         )
         #That might be too much of an incline, but let's see how it goes
         self.DenseConv = nn.Sequential(
-            nn.Linear(39,1024),
+            nn.Linear(35,1024),
             nn.ReLU(),
             nn.Linear(1024,1024),
             nn.ReLU(),
-            nn.Linear(1024,1024),
+            nn.Linear(1024,512),
         )
 
         self.optimizer = optim.Adam(self.parameters(), lr = 0.001, amsgrad=True)
         self.loss = nn.MSELoss()
-        self.to(self.device)
+
+
+
+        # adding the outputs of self.denselayer and self.ConvScalar
+
+        # I think I logaically need to combine them earlier
+        # Let's think about that in school  
+
+        # I probably need to add a conv layer before the res layer but let's see
+
+class DQN(nn.Module):
+    def __init__(self, num_resBlocks = 5):
+        super().__init__()
+
+        self.denselayer = nn.Sequential(
+            nn.Linear(35,128),
+            nn.ReLU(),
+            nn.Linear(128,128),
+            nn.ReLU(),
+            nn.Linear(128,64),
+        
+        )
+        self.denseFinal = nn.Sequential(
+            nn.Linear(128,64),
+            nn.ReLU(),
+            nn.Linear(64,41)
+        )
+        
+
+        self.ConvScalar = nn.Sequential(
+            nn.Conv2d(23,10,kernel_size=(5,3),padding=0,stride=(2,2)),
+            nn.BatchNorm2d(10),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(400, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+        )
+
+        self.ConvConv = nn.ModuleList(
+            [ResBlock() for i in range(num_resBlocks)]
+        )
+
+        #quite a lot of features, hope that this works
+        self.ConvCombine = nn.Sequential(
+            nn.Conv2d(23,10,kernel_size=(5,3),padding=0,stride=(2,2)),
+            nn.BatchNorm2d(10),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(400, 256),
+            nn.ReLU(),
+            nn.Linear(256, 256),           
+            #combine the last layer of DenseConv with the last one of ConvCombine
+        )
+
+        self.ConvCombineFinal = nn.Sequential(
+            nn.Linear(512,512),
+            nn.ReLU(),
+            nn.Linear(512,1024),
+            nn.ReLU(),
+            nn.Linear(1024,11*21*4),
+        )
+        #That might be too much of an incline, but let's see how it goes
+        self.DenseConv = nn.Sequential(
+            nn.Linear(35,256),
+            nn.ReLU(),
+            nn.Linear(256,256),
+            nn.ReLU(),
+            nn.Linear(256,256),
+        )
+
+        self.optimizer = optim.Adam(self.parameters(), lr = 0.001, amsgrad=True)
+        self.loss = nn.MSELoss()
+
 
 
         # adding the outputs of self.denselayer and self.ConvScalar
@@ -2159,41 +2341,29 @@ class DQN(nn.Module):
         # I probably need to add a conv layer before the res layer but let's see
 
 
-    def forward(self, x , y):
-        print(x.shape)
-        print(y.shape)
-        x1 = self.denselayer(x)
-        print(x1.shape)
-        x2 = self.ConvScalar(y)
-        print(x2.shape)
-        y1 = self.DenseConv(x)
-        print("how?",y1.shape)
+    def forward(self, boardstate2, vectorstate2):
+        x1 = self.denselayer(vectorstate2)
+        x2 = self.ConvScalar(boardstate2)
+        y1 = self.DenseConv(vectorstate2)
         for resblock in self.ConvConv:
-            y2 = resblock(y)
+            y2 = resblock(boardstate2)
         y2 = self.ConvCombine(y2)
-        print(y2.shape)
         #is this the right dimension in which I concentate?
         y = torch.cat((y1,y2),1)
         x = torch.cat((x1,x2),1)
-        print(x.shape)
-        print(y.shape)
         vectoractions = self.denseFinal(x)
         boardactions = self.ConvCombineFinal(y)
-        print(vectoractions.shape)
-        print(boardactions.shape)
-
-        actions = torch.cat((vectoractions,boardactions),1)
-
-        return actions
+        state = torch.cat((boardactions,vectoractions),1)
+        return state
     
 # might change the number of hidden layers later on 
 class ResBlock(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(17, 17, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(17)
-        self.conv2 = nn.Conv2d(17, 17, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(17)
+        self.conv1 = nn.Conv2d(23, 23, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(23)
+        self.conv2 = nn.Conv2d(23, 23, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(23)
     def forward(self,x):
         residual = x
         x = F.relu(self.bn1(self.conv1(x)))
@@ -2221,21 +2391,25 @@ class ResBlock(nn.Module):
 #actionprobabilities = F.softmax(actions,dim=1)
 
 
-BATCH_SIZE = 128
+BATCH_SIZE = 32
 GAMMA = 0.999
-EPS_START = 0.9
+EPS_START = 1
 EPS_END = 0.05
-EPS_DECAY = 200
+EPS_DECAY = 1000
 TAU = 0.001
-LR = 0.001
+LR = 0.005
 
-n_actions = 35
+total_actions = 21*11*4 + 41
+action_counts = [0] * total_actions
+random_action_counts = [0] * total_actions
 
-boardstate = np.zeros((17,21,21),dtype = np.float32)
-vectorstate = np.zeros((39),dtype = np.float32)
+
+cur_boardstate = state_changer()[0]
+cur_vectorstate = state_changer()[1]
 
 state, info = 0,0
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 agent2_policy_net = DQN().to(device)
 agent1_policy_net = DQN().to(device)
@@ -2247,105 +2421,265 @@ memory = ReplayMemory(10000)
 
 steps_done = 0
 
-def Agent1_select_action(state):
+def select_action(boardstate, vectorstate):
     global steps_done
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END)*math.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
     if sample > eps_threshold:
         with torch.no_grad():
-            return agent1_policy_net(state).max(1).indices.view(1,1)
+            if game.cur_player == 0:
+                action = agent1_policy_net(boardstate, vectorstate).max(1).indices.view(1,1)
+                if action >= 4*11*21:
+                    final_action = action - 4*11*21 + 5
+                    position_y = 0
+                    position_x = 0
+                else:
+                    final_action = math.ceil((action/11/21)+1)
+                    position_y = math.floor((action - ((final_action-1)*11*21)-1)/21)
+                    position_x = action % 21 
+                action_selecter(final_action, position_x, position_y)
+                action_counts[action-1] += 1
+                return action
+            elif game.cur_player == 1:
+                action =  agent2_policy_net(boardstate, vectorstate).max(1).indices.view(1,1) 
+                if action >= 4*11*21:
+                    final_action = action - 4*11*21 + 5
+                    position_y = 0
+                    position_x = 0
+                else:
+                    final_action = math.ceil(action/11/21)
+                    position_y = math.floor((action - ((final_action-1)*11*21)-1)/21)
+                    position_x = action % 21 
+                action_selecter(final_action, position_x, position_y)
+                action_counts[action-1] += 1
+                return action
     else:
-        return torch.tensor([[random.randrange(n_actions)]], device=device, dtype=torch.long)
-    
-def Agent2_select_action(state):
-    sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END)*math.exp(-1. * steps_done / EPS_DECAY)
-    steps_done += 1
-    if sample > eps_threshold:
-        with torch.no_grad():
-            return agent2_policy_net(state).max(1).indices.view(1,1)
-    else:
-        return torch.tensor([[random.randrange(n_actions)]], device=device, dtype=torch.long)
+        action = torch.tensor([[random.randrange(1,4*21*11 + 41)]], device=device, dtype=torch.long)
+        if action >= 4*11*21:
+            final_action = action - 4*11*21 + 5
+            position_y = 0
+            position_x = 0
+        else:
+            final_action = math.ceil(action/11/21)
+            position_y = math.floor((action - ((final_action-1)*11*21)-1)/21)
+            position_x = action % 21 
+        action_selecter(final_action, position_x, position_y)
+
+        #final_action, position_x, position_y = torch.tensor([[random.randrange(1,1+n_actions)]], device=device, dtype=torch.long), torch.tensor([[random.randrange(21)]], device=device, dtype=torch.long), torch.tensor([[random.randrange(11)]], device=device, dtype=torch.long)
+        #action_selecter(final_action, position_x, position_y)
+        #if final_action <= 4:
+        #    action = (final_action-1)*21*11 + position_y*21 + position_x
+        #else:
+        #    action = 4*21*11 + (final_action-5)
+        
+        random_action_counts[action-1] += 1
+        return action
     
 episode_durations = []
 
 def plotting():
     print()
+#def optimize_model():
+#    if len(memory) < BATCH_SIZE:
+#        return
+#    transitions = memory.sample(BATCH_SIZE)
+#    batch = Transition(*zip(*transitions))
+#
+#    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)),device=device, dtype=torch.bool)
+#    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
+#
+#    state_batch = torch.cat(batch.state)
+#    action_batch = torch.cat(batch.action)
+#    reward_batch = torch.cat(batch.reward)
+#
+#    state_action_values = agent1_policy_net(state_batch).gather(1,action_batch)
+#
+#    next_state_values = torch.zeros(BATCH_SIZE,device=device)
+#
+#    next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
+#
+#    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
+#
+#    loss = F.smooth_l1_loss(state_action_values,expected_state_action_values.unsqueeze(1))
+#    
+#    optimizer.zero_grad()
+#
+#    loss.backward()
+#
+#    #torch.nn.utils.clip_grad_norm_(agent1_policy_net.parameters(), 100)
+#
+#    optimizer.step()
+
+
+
+log_called = 0
+def log():
+    wandb.watch(agent1_policy_net)
+    eps_threshold = EPS_END + (EPS_START - EPS_END)*math.exp(-1. * steps_done / EPS_DECAY)
+    wandb.log({"eps_threshold": eps_threshold})
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=list(range(len(action_counts))), y=action_counts, mode='markers', name='Action Counts'))
+    fig.add_trace(go.Scatter(x=list(range(len(random_action_counts))), y=random_action_counts, mode='markers', name='Random Action Counts'))
+    wandb.log({"Player 0 Wins": player0.wins})
+    wandb.log({"Player 1 Wins": player1.wins})
+    wandb.log({"Episode Duration": episode_durations})
+    wandb.log({"player0.victorypoints": player0.victorypoints})
+    wandb.log({"player1.victorypoints": player1.victorypoints})
+    wandb.log({"Action Counts": wandb.Plotly(fig)})
+    wandb.log({"random_testing.move_finsihed":random_testing.move_finished})
+    wandb.log({"phase.statechangecount": phase.statechangecount})
+    # Create a scatter plot for function call counts
+    fig = go.Figure(data=go.Scatter(
+        x=list(call_counts.keys()), 
+        y=list(call_counts.values()), 
+        mode='markers', 
+        marker=dict(
+            size=10,
+            color=list(call_counts.values()), # set color to an array/list of desired values
+            colorscale='Viridis', # choose a colorscale
+            showscale=True
+        )
+    ))
+    wandb.log({"game.seven_rolled": game.seven_rolled})
+    wandb.log({"game.cur_player": game.cur_player})
+    wandb.log({"game.placement_phase_pending": game.placement_phase_pending})
+    wandb.log({"player0.knight_move_pending": player0.knight_move_pending})
+    wandb.log({"player0.monopoly_move_pending": player0.monopoly_move_pending})
+    wandb.log({"player0.roadbuilding_move_pending": player0.roadbuilding_move_pending})
+    wandb.log({"player0.yearofplenty_move_pending": player0.yearofplenty_move_pending})
+    wandb.log({"player0.discard_resources_started": player0.discard_resources_started})
+    wandb.log({"player0.monopoly_cards_old": player0.monopoly_cards_old})
+
+    wandb.log({"player1.knight_move_pending": player1.knight_move_pending})
+    wandb.log({"player1.monopoly_move_pending": player1.monopoly_move_pending})
+    wandb.log({"player1.roadbuilding_move_pending": player1.roadbuilding_move_pending})
+    wandb.log({"player1.yearofplenty_move_pending": player1.yearofplenty_move_pending})
+    wandb.log({"player1.discard_resources_started": player1.discard_resources_started})
+    wandb.log({"player1.monopoly_cards_old": player1.monopoly_cards_old})
+    # Log to Weights & Biases
+    wandb.log({"Function Call Counts": wandb.Plotly(fig)})
+    
+    #for i in range (len(action_counts)):
+    #    wandb.log({f"Action {i-1}": action_counts[i-1]})
+    #
+    #for i in range (len(random_action_counts)):
+    #    wandb.log({f"Random Action {i-1}": random_action_counts[i-1]})
+
+
+@count_calls
 def optimize_model():
+    print(len(memory))
     if len(memory) < BATCH_SIZE:
         return
     transitions = memory.sample(BATCH_SIZE)
     batch = Transition(*zip(*transitions))
 
-    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)),device=device, dtype=torch.bool)
-    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
+    non_final_mask = torch.tensor(tuple(map(lambda s: s[0] is not None and s[1] is not None, zip(batch.next_boardstate, batch.next_vectorstate))), device=device, dtype=torch.bool)
+    non_final_next_board_states = torch.cat([s for s in batch.next_boardstate if s is not None])
+    non_final_next_vector_states = torch.cat([s for s in batch.next_vectorstate if s is not None])
 
-    state_batch = torch.cat(batch.state)
-    action_batch = torch.cat(batch.action)
+    state_batch = (torch.cat(batch.cur_boardstate), torch.cat(batch.cur_vectorstate))
+    action_batch = (torch.cat(batch.action))
     reward_batch = torch.cat(batch.reward)
+    state_action_values = agent1_policy_net(*state_batch).gather(1, action_batch)
 
-    state_action_values = agent1_policy_net(state_batch).gather(1,action_batch)
+    next_state_values = torch.zeros(BATCH_SIZE, device=device)
 
-    next_state_values = torch.zeros(BATCH_SIZE,device=device)
-
-    next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
+    next_state_values[non_final_mask] = target_net(non_final_next_board_states, non_final_next_vector_states).max(1)[0].detach()
 
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
-    loss = F.smooth_l1_loss(state_action_values,expected_state_action_values.unsqueeze(1))
-    
+    loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
     optimizer.zero_grad()
-
+    start_time = time.time()
     loss.backward()
-
-    #torch.nn.utils.clip_grad_norm_(agent1_policy_net.parameters(), 100)
+    final_time = time.time() - start_time
+    print(final_time)
 
     optimizer.step()
 
+start_time = time.time()
+
+
 num_episodes = 1000
 for i_episode in range (num_episodes):
+    print(i_episode)
     if i_episode % 100 == 99:
-        if wins > 50:
+        if player0.wins > 50:
             torch.save(agent1_policy_net.state_dict(), 'agent{num_episodes}_policy_net.pth')
             agent2_policy_net.load_state_dict(torch.load('agent{num_episodes}_policy_net.pth'))
-        wins = 0
+        player0.wins = 0
     
-    state = 0  #info = 0
-    state = torch.tensor(state,device=device,dtype=torch.float).unsqueeze(0)
+
     for t in count():
-        if curagent == 1:
-            action = Agent2_select_action(state)
+        cur_boardstate =  state_changer()[0]
+        cur_vectorstate = state_changer()[1]
+        cur_boardstate = torch.tensor(cur_boardstate, device = device, dtype = torch.float).unsqueeze(0)
+        cur_vectorstate = torch.tensor(cur_vectorstate, device = device, dtype = torch.float).unsqueeze(0)
+
+        
+        if game.cur_player == 1:
+            action = select_action(cur_boardstate, cur_vectorstate)
+            if phase.statechange == 1:
+                #calculate reward and check done
+                next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
+                reward = torch.tensor([reward], device = device)
+                next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
+                next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
+
+                if done:
+                    next_board_state = None
+                    next_vector_state = None
+                cur_boardstate = next_board_state
+                cur_vector_state = next_vector_state
+        elif game.cur_player == 0:
+            action = select_action(cur_boardstate, cur_vectorstate)
             #calculate reward and check done
-            next_state, reward, done = 0,0,0 #this is were I need to perform an action and return the next state, reward, done
-            next_state = torch.tensor(next_state,device=device,dtype=torch.float).unsqueeze(0)
-            if done:
-                next_state = None
-            state = next_state
+            if phase.statechange == 1:
+                next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
+                reward = torch.tensor([reward], device = device)
+                next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
+                next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
+                if done:
+                    next_board_state = None
+                    next_vector_state = None
+                memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
+                cur_boardstate = next_board_state
+                cur_vectorstate = next_vector_state
+                optimize_model()
 
-        if curagent == 0:
-            action = Agent1_select_action(state)
-            next_state, reward, done = 0,0,0 #this is were I need to perform an action and return the next state, reward, done
-            reward = torch.tensor([reward],device=device)
-            next_state = torch.tensor(next_state,device=device,dtype=torch.float).unsqueeze(0)
-            if done:
-                next_state = None
-            memory.push(state,action,next_state,reward)
-            state = next_state
-            optimize_model()
+                target_net_state_dict = target_net.state_dict()
+                policy_net_state_dict = agent1_policy_net.state_dict()
+                for key in policy_net_state_dict:
+                    target_net_state_dict[key] = TAU*policy_net_state_dict[key] + (1-TAU)*target_net_state_dict[key]
+                target_net.load_state_dict(target_net_state_dict)
+                if done:
+                    episode_durations.append(t+1)
+                    break
+        steps_done += phase.statechange
+        phase.statechangecount += phase.statechange
+        phase.statechange = 0
+            
 
-            target_net.load_state_dict(agent1_policy_net.state_dict())
-
-        if done:
-            episode_durations.append(t+1)
-            #if player1 won, update win counter
-            break
-
+        
+        if t % 10000 == 0:
+            a = int(t/100)
+            log()
+            elapsed_time = time.time() - start_time
+            wandb.log({"Elapsed Time": elapsed_time}, step=t)
+            wandb.log({"t": t})
+            #print(t)
+            #print(player0.victorypoints)
+            #print(player1.victorypoints)
 print('Complete')
 
 
 #might add more than 1 training agent later on 
     
+
+
+
 
 
