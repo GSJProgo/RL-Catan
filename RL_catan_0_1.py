@@ -761,6 +761,7 @@ def roll_dice():
                         player0.resource_brick += player0.rewards_possible[i][j]
                     elif board.tiles_ore[i][j] == 1:
                         player0.resource_ore += player0.rewards_possible[i][j]
+                    phase.reward += player0.rewards_possible[i][j] * 0.0004
 
                 if player1.rewards_possible[i][j] != 0:
                     if board.tiles_lumber[i][j] == 1:
@@ -773,6 +774,7 @@ def roll_dice():
                         player1.resource_brick += player1.rewards_possible[i][j]
                     elif board.tiles_ore[i][j] == 1:
                         player1.resource_ore += player1.rewards_possible[i][j]
+                        phase.reward += player0.rewards_possible[i][j] * 0.0004
     return roll
 
 @count_calls
@@ -842,7 +844,7 @@ def steal_card():
     random_testing.steal_card += 1
     player = players[game.cur_player]
     opponent = players[1-game.cur_player]
-    
+    phase.reward += 0.0004
     opponent_resources_total = opponent.resource_lumber + opponent.resource_brick + opponent.resource_wool + opponent.resource_grain + opponent.resource_ore
     if opponent_resources_total != 0:
         random_resource = np.random.choice(np.arange(1, 6), p=[opponent.resource_lumber/opponent_resources_total, opponent.resource_brick/opponent_resources_total, opponent.resource_wool/opponent_resources_total, opponent.resource_grain/opponent_resources_total, opponent.resource_ore/opponent_resources_total])
@@ -919,6 +921,7 @@ def activate_yearofplenty_func(resource1,resource2):
         elif resource2 == 5:
             player.resource_ore = player.resource_ore + 1
         random_testing.successful_activate_yearofplenty_func += 1
+        phase.reward += 0.0008
         phase.statechange = 1
         return 1 
     return 0 
@@ -933,18 +936,23 @@ def activate_monopoly_func(resource):
         if resource == 1:
             player.resource_lumber = player.resource_lumber + opponent.resource_lumber
             opponent.resource_lumber = 0
+            phase.reward += 0.0004 * opponent.resource_lumber
         elif resource == 2:
             player.resource_wool = player.resource_wool + opponent.resource_wool
             opponent.resource_wool = 0
+            phase.reward += 0.0004 * opponent.resource_wool
         elif resource == 3:
             player.resource_grain = player.resource_grain + opponent.resource_grain
             opponent.resource_grain = 0
+            phase.reward += 0.0004 * opponent.resource_grain
         elif resource == 4:
             player.resource_brick = player.resource_brick + opponent.resource_brick
             opponent.resource_brick = 0
+            phase.reward += 0.0004 * opponent.resource_brick
         elif resource == 5:
             player.resource_ore = player.resource_ore + opponent.resource_ore
             opponent.resource_ore = 0
+            phase.reward += 0.0004 * opponent.resource_ore
         random_testing.successful_activate_monopoly_func += 1
         phase.statechange = 1
         return 1
@@ -976,6 +984,7 @@ def trade_resources(give, get):
     player = players[game.cur_player]
     if give == 1 and (board.harbor_lumber * player.settlements + board.harbor_lumber * player.cities).any() != 0:
         if player.resource_lumber > 1:
+            phase.statechange = 1
             player.resource_lumber -= 2
             if get == 2:
                 player.resource_wool += 1
@@ -987,6 +996,7 @@ def trade_resources(give, get):
                 player.resource_ore += 1
     elif give == 2 and (board.harbor_wool * player.settlements + board.harbor_wool * player.cities).any() != 0:
         if player.resource_wool > 1:
+            phase.statechange = 1
             player.resource_wool -= 2
             if get == 1:
                 player.resource_lumber += 1
@@ -998,6 +1008,7 @@ def trade_resources(give, get):
                 player.resource_ore += 1
     elif give == 3 and (board.harbor_grain * player.settlements + board.harbor_grain * player.cities).any() != 0:
         if player.resource_grain > 1:
+            phase.statechange = 1
             player.resource_grain -= 2
             if get == 1:
                 player.resource_lumber += 1
@@ -1009,6 +1020,7 @@ def trade_resources(give, get):
                 player.resource_ore += 1
     elif give == 4 and (board.harbor_brick * player.settlements + board.harbor_brick * player.cities).any() != 0:
         if player.resource_brick > 1:
+            phase.statechange = 1
             player.resource_brick -= 2
             if get == 1:
                 player.resource_lumber += 1
@@ -1020,6 +1032,7 @@ def trade_resources(give, get):
                 player.resource_ore += 1
     elif give == 5 and (board.harbor_ore * player.settlements + board.harbor_ore * player.cities).any() != 0:
         if player.resource_ore > 1:
+            phase.statechange = 1
             player.resource_ore -= 2
             if get == 1:
                 player.resource_lumber += 1
@@ -1031,6 +1044,7 @@ def trade_resources(give, get):
                 player.resource_brick += 1 
     elif (board.harbor_three_one * player.settlements + board.harbor_three_one * player.cities).any() != 0:
         if give == 1 and player.resource_lumber > 2:
+            phase.statechange = 1
             player.resource_lumber -= 3
             if get == 2:
                 player.resource_wool += 1
@@ -1041,6 +1055,7 @@ def trade_resources(give, get):
             elif get == 5:
                 player.resource_ore += 1
         elif give == 2 and player.resource_wool > 2:
+            phase.statechange = 1
             player.resource_wool -= 3
             if get == 1:
                 player.resource_lumber += 1
@@ -1051,6 +1066,7 @@ def trade_resources(give, get):
             elif get == 5:
                 player.resource_ore += 1        
         elif give == 3 and player.resource_grain > 2:
+            phase.statechange = 1
             player.resource_grain -= 3
             if get == 1:
                 player.resource_lumber += 1
@@ -1061,6 +1077,7 @@ def trade_resources(give, get):
             elif get == 5:
                 player.resource_ore += 1
         elif give == 4 and player.resource_brick > 2:
+            phase.statechange = 1
             player.resource_brick -= 3
             if get == 1:
                 player.resource_lumber += 1
@@ -1071,6 +1088,7 @@ def trade_resources(give, get):
             elif get == 5:
                 player.resource_ore += 1
         elif give == 5 and player.resource_ore > 2:
+            phase.statechange = 1
             player.resource_ore -= 3
             if get == 1:
                 player.resource_lumber += 1
@@ -1081,6 +1099,7 @@ def trade_resources(give, get):
             elif get == 4:
                 player.resource_brick += 1
     elif give == 1 and player.resource_lumber > 3:
+        phase.statechange = 1
         player.resource_lumber -= 4
         if get == 2:
             player.resource_wool += 1
@@ -1091,6 +1110,7 @@ def trade_resources(give, get):
         elif get == 5:
             player.resource_ore += 1
     elif give == 2 and player.resource_wool > 3:
+        phase.statechange = 1
         player.resource_wool -= 4
         if get == 1:
             player.resource_lumber += 1
@@ -1101,6 +1121,7 @@ def trade_resources(give, get):
         elif get == 5:
             player.resource_ore += 1    
     elif give == 3 and player.resource_grain > 3:
+        phase.statechange = 1
         player.resource_grain -= 4
         if get == 1:
             player.resource_lumber += 1
@@ -1111,6 +1132,7 @@ def trade_resources(give, get):
         elif get == 5:
             player.resource_ore += 1
     elif give == 4 and player.resource_brick > 3:
+        phase.statechange = 1
         player.resource_brick -= 4
         if get == 1:
             player.resource_lumber += 1
@@ -1121,6 +1143,7 @@ def trade_resources(give, get):
         elif get == 5:
             player.resource_ore += 1
     elif give == 5 and player.resource_ore > 3:
+        phase.statechange = 1
         player.resource_ore -= 4
         if get == 1:
             player.resource_lumber += 1
@@ -1183,7 +1206,7 @@ def discard_resources(lumber, wool, grain, brick, ore):
             player.discard_resources_ore -= 1 
             player.discard_resources_turn += 1
             phase.statechange = 1
-
+    
     if player.discard_resources_turn == math.ceil(player.total_resources/2):
         player.discard_resources_lumber = 0
         player.discard_resources_wool = 0
@@ -1267,7 +1290,6 @@ def find_largest_army():
 def move_finished():
     random_testing.move_finished += 1
     player = players[game.cur_player]
-    phase.reward += 0.0001
     phase.statechange = 1
 
     print("move finished")
@@ -1288,16 +1310,21 @@ def move_finished():
 
     random_testing.numberofturns += 1
 
-    phase.reward = ((player0.victorypoints - player1.victorypoints) - (player0.victorypoints_before - player1.victorypoints_before))*0.02
+    #phase.reward = ((player0.victorypoints - player1.victorypoints) - (player0.victorypoints_before - player1.victorypoints_before))*0.02
+    if game.cur_player == 0:
+        phase.reward += (player0.victorypoints - player0.victorypoints_before) * 0.02
+    if game.cur_player == 1:
+        phase.reward += (player1.victorypoints - player1.victorypoints_before) * 0.02
+    
     player0.victorypoints_before = player0.victorypoints
     player1.victorypoints_before = player1.victorypoints
     
     if player.victorypoints >= 10:
         if game.cur_player == 0: 
-            phase.reward = 1  
+            phase.reward += 1  
             player0.wins += 1
         else: 
-            phase.reward = -1
+            phase.reward -= 1
             player1.wins += 1
         random_testing.numberofgames += 1
         game.is_finished = 1
@@ -1487,6 +1514,9 @@ def turn_starts():
     if player.resource_brick > 0 and player.resource_lumber > 0 and player.resource_grain > 0 and player.resource_wool > 0:
         random_testing.resources_buy_settlement += 1
     if c == 7:
+        total_ressources = player.resource_lumber + player.resource_wool + player.resource_grain + player.resource_brick + player.resource_ore
+        if total_ressources >= 7:
+            phase.reward = -0.0002*total_ressources/2
         game.seven_rolled = 1
         
 
@@ -1927,7 +1957,7 @@ def random_assignment():
     random_agent.random_position_y = np.random.choice(np.arange(0,11))
     random_agent.random_position_x = np.random.choice(np.arange(0,21))
     action_selecter(random_agent.random_action, random_agent.random_position_x, random_agent.random_position_y)
-
+    return random_agent.random_action, random_agent.random_position_x, random_agent.random_position_y
 
 def action_selecter(selected_action, selected_position_x = 0, selected_position_y = 0):
 
@@ -2161,6 +2191,11 @@ Transition = namedtuple('Transition', ('cur_boardstate','cur_vectorstate', 'acti
 
 torch.set_printoptions(precision=5)
 
+def weights_init(m):
+    if isinstance(m, nn.Conv2d):
+        torch.nn.init.xavier_uniform(m.weight.data)
+
+torch.manual_seed(2)
 
 class ReplayMemory(object):
     """docstring for ReplayMemory"""
@@ -2266,7 +2301,22 @@ class BIGDQN(nn.Module):
         # Let's think about that in school  
 
         # I probably need to add a conv layer before the res layer but let's see
-
+    def forward(self, boardstate2, vectorstate2):
+        x1 = self.denselayer(vectorstate2)
+        x2 = self.ConvScalar(boardstate2)
+        y1 = self.DenseConv(vectorstate2)
+        for resblock in self.ConvConv:
+            y2 = resblock(boardstate2)
+        y2 = self.ConvCombine(y2)
+        #is this the right dimension in which I concentate?
+        y = torch.cat((y1,y2),1)
+        x = torch.cat((x1,x2),1)
+        vectoractions = self.denseFinal(x)
+        boardactions = self.ConvCombineFinal(y)
+        state = torch.cat((boardactions,vectoractions),1)
+        return state
+    
+    
 class DQN(nn.Module):
     def __init__(self, num_resBlocks = 5):
         super().__init__()
@@ -2392,10 +2442,10 @@ class ResBlock(nn.Module):
 
 
 BATCH_SIZE = 32
-GAMMA = 0.999
+GAMMA = 0.99
 EPS_START = 1
 EPS_END = 0.05
-EPS_DECAY = 1000
+EPS_DECAY = 20000
 TAU = 0.001
 LR = 0.005
 
@@ -2413,6 +2463,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 agent2_policy_net = DQN().to(device)
 agent1_policy_net = DQN().to(device)
+
+agent1_policy_net.apply(weights_init)
+agent2_policy_net.apply(weights_init)
+
 target_net = DQN().to(device)
 target_net.load_state_dict(agent1_policy_net.state_dict())
 
@@ -2454,63 +2508,19 @@ def select_action(boardstate, vectorstate):
                 action_counts[action-1] += 1
                 return action
     else:
-        action = torch.tensor([[random.randrange(1,4*21*11 + 41)]], device=device, dtype=torch.long)
-        if action >= 4*11*21:
-            final_action = action - 4*11*21 + 5
-            position_y = 0
-            position_x = 0
+        final_action,position_x,position_y = random_assignment()
+        if final_action > 4:
+            action = final_action + 4*11*21 - 5
         else:
-            final_action = math.ceil(action/11/21)
-            position_y = math.floor((action - ((final_action-1)*11*21)-1)/21)
-            position_x = action % 21 
-        action_selecter(final_action, position_x, position_y)
-
-        #final_action, position_x, position_y = torch.tensor([[random.randrange(1,1+n_actions)]], device=device, dtype=torch.long), torch.tensor([[random.randrange(21)]], device=device, dtype=torch.long), torch.tensor([[random.randrange(11)]], device=device, dtype=torch.long)
-        #action_selecter(final_action, position_x, position_y)
-        #if final_action <= 4:
-        #    action = (final_action-1)*21*11 + position_y*21 + position_x
-        #else:
-        #    action = 4*21*11 + (final_action-5)
-        
+            action = (final_action-1)*11*21 + position_y*21 + position_x 
         random_action_counts[action-1] += 1
-        return action
+        action_tensor = torch.tensor([[action]], device=device, dtype=torch.long)
+        return action_tensor
     
 episode_durations = []
 
 def plotting():
     print()
-#def optimize_model():
-#    if len(memory) < BATCH_SIZE:
-#        return
-#    transitions = memory.sample(BATCH_SIZE)
-#    batch = Transition(*zip(*transitions))
-#
-#    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)),device=device, dtype=torch.bool)
-#    non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])
-#
-#    state_batch = torch.cat(batch.state)
-#    action_batch = torch.cat(batch.action)
-#    reward_batch = torch.cat(batch.reward)
-#
-#    state_action_values = agent1_policy_net(state_batch).gather(1,action_batch)
-#
-#    next_state_values = torch.zeros(BATCH_SIZE,device=device)
-#
-#    next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
-#
-#    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
-#
-#    loss = F.smooth_l1_loss(state_action_values,expected_state_action_values.unsqueeze(1))
-#    
-#    optimizer.zero_grad()
-#
-#    loss.backward()
-#
-#    #torch.nn.utils.clip_grad_norm_(agent1_policy_net.parameters(), 100)
-#
-#    optimizer.step()
-
-
 
 log_called = 0
 def log():
@@ -2569,7 +2579,6 @@ def log():
 
 @count_calls
 def optimize_model():
-    print(len(memory))
     if len(memory) < BATCH_SIZE:
         return
     transitions = memory.sample(BATCH_SIZE)
@@ -2596,7 +2605,6 @@ def optimize_model():
     start_time = time.time()
     loss.backward()
     final_time = time.time() - start_time
-    print(final_time)
 
     optimizer.step()
 
@@ -2623,6 +2631,8 @@ for i_episode in range (num_episodes):
         if game.cur_player == 1:
             action = select_action(cur_boardstate, cur_vectorstate)
             if phase.statechange == 1:
+                phase.reward += 0.0001
+            if phase.statechange == 1:
                 #calculate reward and check done
                 next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
                 reward = torch.tensor([reward], device = device)
@@ -2637,6 +2647,8 @@ for i_episode in range (num_episodes):
         elif game.cur_player == 0:
             action = select_action(cur_boardstate, cur_vectorstate)
             #calculate reward and check done
+            if phase.statechange == 1:
+                phase.reward += 0.0001
             if phase.statechange == 1:
                 next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
                 reward = torch.tensor([reward], device = device)
@@ -2662,7 +2674,7 @@ for i_episode in range (num_episodes):
         phase.statechangecount += phase.statechange
         phase.statechange = 0
             
-
+        phase.reward = 0
         
         if t % 10000 == 0:
             a = int(t/100)
