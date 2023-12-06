@@ -14,7 +14,7 @@ import torch.nn.functional as F
 #plotting
 import wandb 
 import plotly.graph_objects as go
-wandb.init(project="RL-Catan", name="RL_version_0.0.2", config={})
+wandb.init(project="RL-Catan", name="RL_version_0.0.3", config={})
 import os
 
 _NUM_ROWS = 11
@@ -169,7 +169,35 @@ class Player:
         self.wins = 0
 
 
+    class Log:
+        def __init__(self):
+            #The average is taken over the last 10 games 
+            self.average_victory_points = []
+            self.average_resources_found = []
+            #self.average_resources_found_move = 0 | I can calculate this  
+            self.final_board_state = 0 #tommorow
+            self.AI_function_calls = 0 #same here
+            self.successful_AI_function_calls = 0 #same here
+            self.average_development_cards_bought = []
+            self.average_roads_built = []
+            self.average_settlements_built = []
+            self.average_cities_built = []
+            self.average_knights_played = []
+            self.average_development_cards_used = [] #victory point cards are seen as automatically used
+            self.average_resources_traded = []
+            self.average_longest_road = []
 
+            self.total_resources_found = 0
+            self.total_development_cards_bought = 0
+            self.total_roads_built = 0
+            self.total_settlements_built = 0
+            self.total_cities_built = 0
+            self.total_development_cards_used = 0
+            self.total_resources_traded = 0
+            self.total_knights_played = 0
+
+
+            
     
     class Action: 
         def __init__(self):
@@ -349,6 +377,20 @@ class Game:
         self.placement_phase_settlement_coordinate1 = 0
         self.placement_phase_settlement_coordinate2 = 0
 
+        self.average_time = []
+        self.average_moves = []
+        self.average_q_value_loss = []
+        self.average_highest_q_value = []
+
+        self.average_reward_per_move = []
+        self.average_expected_state_action_value = []
+
+        
+        self.random_action_made = 0
+
+
+
+
 
 class Phase():
     def __init__(self):
@@ -367,6 +409,9 @@ player1 = Player()
 players = [player0,player1]
 player0_action = player0.Action()
 player1_action = player1.Action()
+player0_log = player0.Log()
+player1_log = player1.Log()
+player_log = [player0_log, player1_log]
 player_action = [player0_action, player1_action]
 game = Game()
 player0_keepresources = player0.Action.Keepresources()
@@ -762,6 +807,7 @@ def roll_dice():
                     elif board.tiles_ore[i][j] == 1:
                         player0.resource_ore += player0.rewards_possible[i][j]
                     phase.reward += player0.rewards_possible[i][j] * 0.0004
+                    
 
                 if player1.rewards_possible[i][j] != 0:
                     if board.tiles_lumber[i][j] == 1:
@@ -774,7 +820,8 @@ def roll_dice():
                         player1.resource_brick += player1.rewards_possible[i][j]
                     elif board.tiles_ore[i][j] == 1:
                         player1.resource_ore += player1.rewards_possible[i][j]
-                        phase.reward += player0.rewards_possible[i][j] * 0.0004
+                    phase.reward += player0.rewards_possible[i][j] * 0.0004
+                player_log[game.cur_player].total_resources_found += player0.rewards_possible[i][j]
     return roll
 
 @count_calls
@@ -790,6 +837,7 @@ def buy_development_cards():
             player.resource_grain -= 1 
             player.resource_ore -= 1 
             phase.statechange = 1
+            player_log[game.cur_player].total_development_cards_bought += 1
             return 1
     return 0 
         
@@ -805,6 +853,7 @@ def buy_road(a,b):
                 player.resource_brick -= 1
                 player.resource_lumber -= 1
                 phase.statechange = 1
+                player_log[game.cur_player].total_roads_built += 1
                 return 1
     return 0 
 
@@ -822,6 +871,7 @@ def buy_settlement(a,b):
             player.resource_wool -= 1 
             player.resource_grain -= 1
             phase.statechange = 1
+            player_log[game.cur_player].total_settlements_built += 1
             return 1 
     return 0 
 
@@ -836,6 +886,7 @@ def buy_city(a,b):
             player.resource_grain -= 2
             player.resource_ore -= 3  
             phase.statechange = 1
+            player_log[game.cur_player].total_cities_built += 1
             return 1
     return 0 
 
@@ -863,7 +914,10 @@ def steal_card():
         elif random_resource == 5:
             opponent.resource_ore = opponent.resource_ore - 1
             player.resource_ore = player.resource_ore + 1
+
+        player_log[game.cur_player].total_resources_found += 1
         random_testing.steal_card += 1
+
 
 @count_calls
 def play_knight(a,b):
@@ -873,10 +927,12 @@ def play_knight(a,b):
     if player.knight_cards_old > 0: #this is wrong, need to update that
         possible = move_rober(a,b)
         if possible == 1:
+            player_log[game.cur_player].total_knights_played += 1
             steal_card()
             player.knight_cards_old -= 1
             player.knight_cards_played += 1
             phase.statechange = 1
+            player_log[game.cur_player].total_development_cards_used += 1
             return 1
     return 0
 
@@ -922,7 +978,9 @@ def activate_yearofplenty_func(resource1,resource2):
             player.resource_ore = player.resource_ore + 1
         random_testing.successful_activate_yearofplenty_func += 1
         phase.reward += 0.0008
+        player_log[game.cur_player].total_resources_found += 2
         phase.statechange = 1
+        player_log[game.cur_player].total_development_cards_used += 1
         return 1 
     return 0 
 
@@ -937,24 +995,31 @@ def activate_monopoly_func(resource):
             player.resource_lumber = player.resource_lumber + opponent.resource_lumber
             opponent.resource_lumber = 0
             phase.reward += 0.0004 * opponent.resource_lumber
+            player_log[game.cur_player].total_resources_found += opponent.resource_lumber
         elif resource == 2:
             player.resource_wool = player.resource_wool + opponent.resource_wool
             opponent.resource_wool = 0
             phase.reward += 0.0004 * opponent.resource_wool
+            player_log[game.cur_player].total_resources_found += opponent.resource_wool
         elif resource == 3:
             player.resource_grain = player.resource_grain + opponent.resource_grain
             opponent.resource_grain = 0
             phase.reward += 0.0004 * opponent.resource_grain
+            player_log[game.cur_player].total_resources_found += opponent.resource_grain
         elif resource == 4:
             player.resource_brick = player.resource_brick + opponent.resource_brick
             opponent.resource_brick = 0
             phase.reward += 0.0004 * opponent.resource_brick
+            player_log[game.cur_player].total_resources_found += opponent.resource_brick
         elif resource == 5:
             player.resource_ore = player.resource_ore + opponent.resource_ore
             opponent.resource_ore = 0
             phase.reward += 0.0004 * opponent.resource_ore
+            player_log[game.cur_player].total_resources_found += opponent.resource_ore
+        
         random_testing.successful_activate_monopoly_func += 1
         phase.statechange = 1
+        player_log[game.cur_player].total_development_cards_used += 1
         return 1
     return 0
 
@@ -972,6 +1037,7 @@ def activate_road_building_func(a1,b1,a2,b2):
                 player.roadbuilding_cards_old = player.roadbuilding_cards_old - 1
                 random_testing.successful_activate_road_building_func += 1
                 phase.statechange = 1
+                player_log[game.cur_player].total_development_cards_used += 1
                 return 1
             else: 
                 player.roads[a1][b1] = 0
@@ -1144,6 +1210,7 @@ def trade_resources(give, get):
             player.resource_ore += 1
     elif give == 5 and player.resource_ore > 3:
         phase.statechange = 1
+        
         player.resource_ore -= 4
         if get == 1:
             player.resource_lumber += 1
@@ -1155,6 +1222,8 @@ def trade_resources(give, get):
             player.resource_brick += 1
     else:
         a = 1
+    if phase.statechange == 1:
+        player_log[game.cur_player].total_resources_traded += 1
 
 
 @count_calls
@@ -1292,8 +1361,6 @@ def move_finished():
     player = players[game.cur_player]
     phase.statechange = 1
 
-    print("move finished")
-
     player.knight_cards_old += player.knight_cards_new
     player.victorypoints_cards_old += player.victorypoints_cards_new
     player.yearofplenty_cards_old += player.yearofplenty_cards_new
@@ -1328,6 +1395,86 @@ def move_finished():
             player1.wins += 1
         random_testing.numberofgames += 1
         game.is_finished = 1
+        player0_log.average_victory_points.insert(0, player0.victorypoints)
+        if len(player0_log.average_victory_points) > 10:
+            player0_log.average_victory_points.pop(10)
+        player1_log.average_victory_points.insert(0, player1.victorypoints)
+        if len(player1_log.average_victory_points) > 10:
+            player1_log.average_victory_points.pop(10)
+        player0_log.average_resources_found.insert(0, player0_log.total_resources_found)
+        if len(player0_log.average_resources_found) > 10:
+            player0_log.average_resources_found.pop(10)
+        player1_log.average_resources_found.insert(0, player1_log.total_resources_found)
+        if len(player1_log.average_resources_found) > 10:
+            player1_log.average_resources_found.pop(10)
+        player0_log.average_development_cards_bought.insert(0, player0_log.total_development_cards_bought)
+        if len(player0_log.average_development_cards_bought) > 10:
+            player0_log.average_development_cards_bought.pop(10)
+        player1_log.average_development_cards_bought.insert(0, player1_log.total_development_cards_bought)
+        if len(player1_log.average_development_cards_bought) > 10:
+            player1_log.average_development_cards_bought.pop(10)
+        player0_log.average_development_cards_used.insert(0, player0_log.total_development_cards_used)
+        if len(player0_log.average_development_cards_used) > 10:
+            player0_log.average_development_cards_used.pop(10)
+        player1_log.average_development_cards_used.insert(0, player1_log.total_development_cards_used)
+        if len(player1_log.average_development_cards_used) > 10:
+            player1_log.average_development_cards_used.pop(10)
+        player0_log.average_settlements_built.insert(0, player0_log.total_settlements_built)
+        if len(player0_log.average_settlements_built) > 10:
+            player0_log.average_settlements_built.pop(10)
+        player1_log.average_settlements_built.insert(0, player1_log.total_settlements_built)
+        if len(player1_log.average_settlements_built) > 10:
+            player1_log.average_settlements_built.pop(10)
+        player0_log.average_cities_built.insert(0, player0_log.total_cities_built)
+        if len(player0_log.average_cities_built) > 10:
+            player0_log.average_cities_built.pop(10)
+        player1_log.average_cities_built.insert(0, player1_log.total_cities_built)
+        if len(player1_log.average_cities_built) > 10:
+            player1_log.average_cities_built.pop(10)
+        player0_log.average_roads_built.insert(0, player0_log.total_roads_built)
+        if len(player0_log.average_roads_built) > 10:
+            player0_log.average_roads_built.pop(10)
+        player1_log.average_roads_built.insert(0, player1_log.total_roads_built)
+        if len(player1_log.average_roads_built) > 10:
+            player1_log.average_roads_built.pop(10)
+        player0_log.average_resources_traded.insert(0, player0_log.total_resources_traded)
+        if len(player0_log.average_resources_traded) > 10:
+            player0_log.average_resources_traded.pop(10)
+        player1_log.average_resources_traded.insert(0, player1_log.total_resources_traded)
+        if len(player1_log.average_resources_traded) > 10:
+            player1_log.average_resources_traded.pop(10)
+        player0_log.average_longest_road.insert(0,player0.roads_connected)
+        if len(player0_log.average_longest_road) > 10:
+            player0_log.average_longest_road.pop(10)
+        player1_log.average_longest_road.insert(0,player1.roads_connected)
+        if len(player1_log.average_longest_road) > 10:
+            player1_log.average_longest_road.pop(10)
+
+        player0_log.average_knights_played.insert(0, player0_log.total_knights_played)
+        if len(player0_log.average_knights_played) > 10:
+            player0_log.average_knights_played.pop(10)
+        player1_log.average_knights_played.insert(0, player1_log.total_knights_played)
+        if len(player1_log.average_knights_played) > 10:
+            player1_log.average_knights_played.pop(10)
+
+        player0_log.total_knights_played = 0
+        player1_log.total_knights_played = 0	
+        player0_log.total_resources_found = 0
+        player1_log.total_resources_found = 0
+        player0_log.total_development_cards_bought = 0
+        player1_log.total_development_cards_bought = 0
+        player0_log.total_development_cards_used = 0
+        player1_log.total_development_cards_used = 0
+        player0_log.total_settlements_built = 0
+        player1_log.total_settlements_built = 0
+        player0_log.total_cities_built = 0
+        player1_log.total_cities_built = 0
+        player0_log.total_roads_built = 0
+        player1_log.total_roads_built = 0
+        player0_log.total_resources_traded = 0
+        player1_log.total_resources_traded = 0
+        
+        
         new_game()
 
     game.cur_player = 1 - game.cur_player
@@ -1389,7 +1536,12 @@ def new_initial_state():
     distribution.development_card_numbers = [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,3,3,4,4,5,5]
     distribution.development_card_random_number = np.random.choice(distribution.development_card_numbers,25,replace=False)
     distribution.development_cards_bought = 0
-
+    
+    
+    player0_log.total_resources_found = 0
+    player1_log.total_resources_found = 0
+    
+    
     for player in players:
         #________________________input board__________________________
         player.settlements = np.zeros((_NUM_ROWS, _NUM_COLS))
@@ -1468,7 +1620,7 @@ def new_initial_state():
         player.roadbuilding_d = 0
         player.roadbuilding_e = 0
 
-    game.is_finished = 0
+
     game.settlementplaced = 0
     game.placement_phase_pending = 0
     game.placement_phase_turns_made = 0
@@ -1514,9 +1666,9 @@ def turn_starts():
     if player.resource_brick > 0 and player.resource_lumber > 0 and player.resource_grain > 0 and player.resource_wool > 0:
         random_testing.resources_buy_settlement += 1
     if c == 7:
-        total_ressources = player.resource_lumber + player.resource_wool + player.resource_grain + player.resource_brick + player.resource_ore
-        if total_ressources >= 7:
-            phase.reward = -0.0002*total_ressources/2
+        total_resources = player.resource_lumber + player.resource_wool + player.resource_grain + player.resource_brick + player.resource_ore
+        if total_resources >= 7:
+            phase.reward = -0.0002*total_resources/2
         game.seven_rolled = 1
         
 
@@ -1749,21 +1901,21 @@ def action_executor():
                 b,c = np.where(action.road_place == 1)
                 d = int(b)
                 e = int(c)
-                print(d,e)
-                print("works")
+                #print(d,e)
+                #print("works")
                 if d < 11 and d >= 0 and e < 21 and e >= 0: 
                     possible = road_place_placement(game.placement_phase_settlement_coordinate1,game.placement_phase_settlement_coordinate2,d,e)
                     if possible == 1:
-                        print("road_place_placement")
+                        #print("road_place_placement")
                         game.placement_phase_road_turn = 0
                         game.placement_phase_settlement_turn = 1
                         game.placement_phase_turns_made += 1
-                        print(game.placement_phase_turns_made)
-                        print("player.settlements")
-                        print(player.settlements)
-                        print("player.roads")
-                        print(player.roads)
-                        print(random_testing.roll_dice)
+                        #print(game.placement_phase_turns_made)
+                        #print("player.settlements")
+                        #print(player.settlements)
+                        #print("player.roads")
+                        #print(player.roads)
+                        #print(random_testing.roll_dice)
                         if game.placement_phase_turns_made == 1:
                             move_finished()
                         if game.placement_phase_turns_made == 3:
@@ -1798,7 +1950,7 @@ def action_executor():
     if game.placement_phase_pending == 1:
         if game.placement_phase_settlement_turn == 1:
             if np.any(action.settlement_place == 1):
-                print("settlement_place")
+                #print("settlement_place")
                 b,c = np.where(action.settlement_place == 1)
                 d = int(b)
                 e = int(c)
@@ -2441,12 +2593,12 @@ class ResBlock(nn.Module):
 #actionprobabilities = F.softmax(actions,dim=1)
 
 
-BATCH_SIZE = 32
+BATCH_SIZE = 8
 GAMMA = 0.99
 EPS_START = 1
 EPS_END = 0.05
-EPS_DECAY = 20000
-TAU = 0.001
+EPS_DECAY = 200000
+TAU = 0.002
 LR = 0.005
 
 total_actions = 21*11*4 + 41
@@ -2471,7 +2623,7 @@ target_net = DQN().to(device)
 target_net.load_state_dict(agent1_policy_net.state_dict())
 
 optimizer = optim.Adam(agent1_policy_net.parameters(), lr = LR, amsgrad=True)
-memory = ReplayMemory(10000)
+memory = ReplayMemory(5000)
 
 steps_done = 0
 
@@ -2489,10 +2641,10 @@ def select_action(boardstate, vectorstate):
                     position_x = 0
                 else:
                     final_action = math.ceil((action/11/21)+1)
-                    position_y = math.floor((action - ((final_action-1)*11*21)-1)/21)
+                    position_y = math.floor((action - ((final_action-1)*11*21))/21)
                     position_x = action % 21 
                 action_selecter(final_action, position_x, position_y)
-                action_counts[action-1] += 1
+                action_counts[action] += 1
                 return action
             elif game.cur_player == 1:
                 action =  agent2_policy_net(boardstate, vectorstate).max(1).indices.view(1,1) 
@@ -2501,11 +2653,11 @@ def select_action(boardstate, vectorstate):
                     position_y = 0
                     position_x = 0
                 else:
-                    final_action = math.ceil(action/11/21)
-                    position_y = math.floor((action - ((final_action-1)*11*21)-1)/21)
+                    final_action = math.ceil((action/11/21)+1)
+                    position_y = math.floor((action - ((final_action-1)*11*21))/21)
                     position_x = action % 21 
                 action_selecter(final_action, position_x, position_y)
-                action_counts[action-1] += 1
+                action_counts[action] += 1
                 return action
     else:
         final_action,position_x,position_y = random_assignment()
@@ -2513,8 +2665,9 @@ def select_action(boardstate, vectorstate):
             action = final_action + 4*11*21 - 5
         else:
             action = (final_action-1)*11*21 + position_y*21 + position_x 
-        random_action_counts[action-1] += 1
+        random_action_counts[action] += 1
         action_tensor = torch.tensor([[action]], device=device, dtype=torch.long)
+        game.random_action_made = 1
         return action_tensor
     
 episode_durations = []
@@ -2523,23 +2676,20 @@ def plotting():
     print()
 
 log_called = 0
-def log():
-    wandb.watch(agent1_policy_net)
+def log(num_episode):
     eps_threshold = EPS_END + (EPS_START - EPS_END)*math.exp(-1. * steps_done / EPS_DECAY)
-    wandb.log({"eps_threshold": eps_threshold})
+    wandb.log({"eps_threshold": eps_threshold}, step=num_episode)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=list(range(len(action_counts))), y=action_counts, mode='markers', name='Action Counts'))
     fig.add_trace(go.Scatter(x=list(range(len(random_action_counts))), y=random_action_counts, mode='markers', name='Random Action Counts'))
-    wandb.log({"Player 0 Wins": player0.wins})
-    wandb.log({"Player 1 Wins": player1.wins})
-    wandb.log({"Episode Duration": episode_durations})
-    wandb.log({"player0.victorypoints": player0.victorypoints})
-    wandb.log({"player1.victorypoints": player1.victorypoints})
-    wandb.log({"Action Counts": wandb.Plotly(fig)})
-    wandb.log({"random_testing.move_finsihed":random_testing.move_finished})
-    wandb.log({"phase.statechangecount": phase.statechangecount})
-    # Create a scatter plot for function call counts
+    wandb.log({"Player 0 Wins": player0.wins}, step=num_episode)
+    wandb.log({"Player 1 Wins": player1.wins}, step=num_episode)
+    wandb.log({"Episode Duration": episode_durations}, step=num_episode)
+    wandb.log({"Action Counts": wandb.Plotly(fig)}, step=num_episode)
+    wandb.log({"random_testing.move_finsihed":random_testing.move_finished}, step=num_episode)
+    wandb.log({"phase.statechangecount": phase.statechangecount}, step=num_episode)
+
     fig = go.Figure(data=go.Scatter(
         x=list(call_counts.keys()), 
         y=list(call_counts.values()), 
@@ -2551,25 +2701,35 @@ def log():
             showscale=True
         )
     ))
-    wandb.log({"game.seven_rolled": game.seven_rolled})
-    wandb.log({"game.cur_player": game.cur_player})
-    wandb.log({"game.placement_phase_pending": game.placement_phase_pending})
-    wandb.log({"player0.knight_move_pending": player0.knight_move_pending})
-    wandb.log({"player0.monopoly_move_pending": player0.monopoly_move_pending})
-    wandb.log({"player0.roadbuilding_move_pending": player0.roadbuilding_move_pending})
-    wandb.log({"player0.yearofplenty_move_pending": player0.yearofplenty_move_pending})
-    wandb.log({"player0.discard_resources_started": player0.discard_resources_started})
-    wandb.log({"player0.monopoly_cards_old": player0.monopoly_cards_old})
 
-    wandb.log({"player1.knight_move_pending": player1.knight_move_pending})
-    wandb.log({"player1.monopoly_move_pending": player1.monopoly_move_pending})
-    wandb.log({"player1.roadbuilding_move_pending": player1.roadbuilding_move_pending})
-    wandb.log({"player1.yearofplenty_move_pending": player1.yearofplenty_move_pending})
-    wandb.log({"player1.discard_resources_started": player1.discard_resources_started})
-    wandb.log({"player1.monopoly_cards_old": player1.monopoly_cards_old})
-    # Log to Weights & Biases
-    wandb.log({"Function Call Counts": wandb.Plotly(fig)})
-    
+    wandb.log({"Function Call Counts": wandb.Plotly(fig)}, step=num_episode)
+
+    wandb.log({"game.average_time": sum(game.average_time)/10}, step=num_episode)
+    wandb.log({"game.average_moves": sum(game.average_moves)/10}, step=num_episode)
+    wandb.log({"game.average_q_value_loss": sum(game.average_q_value_loss)/1000}, step=num_episode)
+
+    wandb.log({"player0_log.average_victory_points": sum(player0_log.average_victory_points)/10}, step=num_episode)
+    wandb.log({"player1_log.average_victory_points": sum(player1_log.average_victory_points)/10}, step=num_episode)
+    wandb.log({"player0_log.average_resources_found": sum(player0_log.average_resources_found)/10}, step=num_episode)
+    wandb.log({"player1_log.average_resources_found": sum(player1_log.average_resources_found)/10}, step=num_episode)
+    wandb.log({"player0_log.average_resources_traded": sum(player0_log.average_resources_traded)/10}, step=num_episode)
+    wandb.log({"player1_log.average_resources_traded": sum(player1_log.average_resources_traded)/10}, step=num_episode)
+    wandb.log({"player0_log.average_development_cards_bought": sum(player0_log.average_development_cards_bought)/10}, step=num_episode)
+    wandb.log({"player1_log.average_development_cards_bought": sum(player1_log.average_development_cards_bought)/10}, step=num_episode)
+    wandb.log({"player0_log.average_development_cards_used": sum(player0_log.average_development_cards_used)/10}, step=num_episode)
+    wandb.log({"player1_log.average_development_cards_used": sum(player1_log.average_development_cards_used)/10}, step=num_episode)
+    wandb.log({"player0_log.average_roads_built": sum(player0_log.average_roads_built)/10}, step=num_episode)
+    wandb.log({"player1_log.average_roads_built": sum(player1_log.average_roads_built)/10}, step=num_episode)
+    wandb.log({"player0_log.average_settlements_built": sum(player0_log.average_settlements_built)/10}, step=num_episode)
+    wandb.log({"player1_log.average_settlements_built": sum(player1_log.average_settlements_built)/10}, step=num_episode)
+    wandb.log({"player0_log.average_cities_built": sum(player0_log.average_cities_built)/10}, step=num_episode)
+    wandb.log({"player1_log.average_cities_built": sum(player1_log.average_cities_built)/10}, step=num_episode)
+    wandb.log({"player0_log.average_knights_played": sum(player0_log.average_knights_played)/10}, step=num_episode)
+    wandb.log({"player1_log.average_knights_played": sum(player1_log.average_knights_played)/10}, step=num_episode)
+    wandb.log({"player0_log.average_longest_road": sum(player0_log.average_longest_road)/10}, step=num_episode)
+
+    wandb.log({"game.average_reward_per_move": sum(game.average_reward_per_move)/1000}, step=num_episode)
+    wandb.log({"game.average_expected_state_action_value": sum(game.average_expected_state_action_value)/1000}, step=num_episode)
     #for i in range (len(action_counts)):
     #    wandb.log({f"Action {i-1}": action_counts[i-1]})
     #
@@ -2599,7 +2759,20 @@ def optimize_model():
 
     expected_state_action_values = (next_state_values * GAMMA) + reward_batch
 
-    loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+    loss = F.l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
+
+    #adding sum of state action and sum of expected state action values to wandb
+    game.average_q_value_loss.insert(0, loss.mean().item())
+    while len(game.average_q_value_loss) > 1000:
+        game.average_q_value_loss.pop(1000)
+
+    game.average_reward_per_move.insert(0, phase.reward)
+    while len(game.average_reward_per_move) > 1000:
+        game.average_reward_per_move.pop(1000)
+
+    game.average_expected_state_action_value.insert(0, expected_state_action_values.mean().item())
+    while len(game.average_expected_state_action_value) > 1000:
+        game.average_expected_state_action_value.pop(1000)
 
     optimizer.zero_grad()
     start_time = time.time()
@@ -2613,14 +2786,13 @@ start_time = time.time()
 
 num_episodes = 1000
 for i_episode in range (num_episodes):
+    time_new_start = time.time()
     print(i_episode)
-    if i_episode % 100 == 99:
-        if player0.wins > 50:
-            torch.save(agent1_policy_net.state_dict(), 'agent{num_episodes}_policy_net.pth')
-            agent2_policy_net.load_state_dict(torch.load('agent{num_episodes}_policy_net.pth'))
-        player0.wins = 0
-    
-
+    if i_episode % 20 == 19:
+        torch.save(agent1_policy_net.state_dict(), f'agent{i_episode}_policy_net_0_0_3.pth')
+        agent2_policy_net.load_state_dict(torch.load(f'agent{i_episode}_policy_net_0_0_3.pth'))
+        target_net.load_state_dict(agent1_policy_net.state_dict())
+        
     for t in count():
         cur_boardstate =  state_changer()[0]
         cur_vectorstate = state_changer()[1]
@@ -2631,30 +2803,32 @@ for i_episode in range (num_episodes):
         if game.cur_player == 1:
             action = select_action(cur_boardstate, cur_vectorstate)
             if phase.statechange == 1:
-                phase.reward += 0.0001
-            if phase.statechange == 1:
                 #calculate reward and check done
                 next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
                 reward = torch.tensor([reward], device = device)
                 next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
                 next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
 
-                if done:
+                if done == 1:
                     next_board_state = None
                     next_vector_state = None
                 cur_boardstate = next_board_state
                 cur_vector_state = next_vector_state
+                if done == 1:
+                    print("done1")
+                    game.is_finished = 0
+                    episode_durations.append(t+1)
+                    break
         elif game.cur_player == 0:
             action = select_action(cur_boardstate, cur_vectorstate)
             #calculate reward and check done
-            if phase.statechange == 1:
-                phase.reward += 0.0001
             if phase.statechange == 1:
                 next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
                 reward = torch.tensor([reward], device = device)
                 next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
                 next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
-                if done:
+                if done == 1:
+                    print("done0")
                     next_board_state = None
                     next_vector_state = None
                 memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
@@ -2664,27 +2838,46 @@ for i_episode in range (num_episodes):
 
                 target_net_state_dict = target_net.state_dict()
                 policy_net_state_dict = agent1_policy_net.state_dict()
-                for key in policy_net_state_dict:
-                    target_net_state_dict[key] = TAU*policy_net_state_dict[key] + (1-TAU)*target_net_state_dict[key]
+                #I might do a mix later on
+                #for key in policy_net_state_dict:
+                #    target_net_state_dict[key] = TAU*policy_net_state_dict[key] + (1-TAU)*target_net_state_dict[key]
                 target_net.load_state_dict(target_net_state_dict)
-                if done:
+                if done == 1:
+                    game.is_finished = 0
                     episode_durations.append(t+1)
                     break
+            elif game.random_action_made == 1:
+                phase.reward -= 0.0001
+                sample = random.random()
+                if sample < 0.02:
+                    next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished
+                    reward = torch.tensor([reward], device = device)
+                    next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
+                    next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
+                    memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
+        
         steps_done += phase.statechange
         phase.statechangecount += phase.statechange
         phase.statechange = 0
-            
+        game.random_action_made = 0
         phase.reward = 0
         
-        if t % 10000 == 0:
-            a = int(t/100)
-            log()
-            elapsed_time = time.time() - start_time
-            wandb.log({"Elapsed Time": elapsed_time}, step=t)
-            wandb.log({"t": t})
-            #print(t)
-            #print(player0.victorypoints)
-            #print(player1.victorypoints)
+    a = int(t/100)
+    log(i_episode)
+    elapsed_time = time.time() - start_time
+    wandb.log({"Elapsed Time": elapsed_time}, step=i_episode)
+    wandb.log({"t": t}, step = i_episode)
+    #print(t)
+    #print(player0.victorypoints)
+    #print(player1.victorypoints)
+    game.average_time.insert(0, time.time() - time_new_start) 
+    if len(game.average_time) > 10:
+        game.average_time.pop(10)
+    game.average_moves.insert(0, t+1)
+    if len(game.average_moves) > 10:
+        game.average_moves.pop(10)
+    
+    
 print('Complete')
 
 
