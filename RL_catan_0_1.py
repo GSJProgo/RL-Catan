@@ -14,11 +14,15 @@ import torch.nn.functional as F
 #plotting
 import wandb 
 import plotly.graph_objects as go
-wandb.init(project="RL-Catan", name="RL_version_0.0.3", config={})
+wandb.init(project="RL-Catan", name="RL_version_0.1.1", config={})
 import os
+
+
 
 _NUM_ROWS = 11
 _NUM_COLS = 21
+
+print(f"PID: {os.getpid()}")
 
 class Board: 
     def __init__(self):
@@ -385,6 +389,8 @@ class Game:
         self.average_reward_per_move = []
         self.average_expected_state_action_value = []
 
+        self.average_win_ratio = []
+        self.average_legal_moves_ratio = []
         
         self.random_action_made = 0
 
@@ -398,6 +404,13 @@ class Phase():
         self.reward = 0
         self.statechange = 0
         self.statechangecount = 0
+        self.statechangecountafter = 0
+        self.gamemoves = 0
+        self.victoryreward = 0
+        self.victorypointreward = 0
+        self.illegalmovesreward = 0
+        self.legalmovesreward = 0
+        self.actionstarted = 0
 
 
 random_testing = Random_Testing()
@@ -806,7 +819,7 @@ def roll_dice():
                         player0.resource_brick += player0.rewards_possible[i][j]
                     elif board.tiles_ore[i][j] == 1:
                         player0.resource_ore += player0.rewards_possible[i][j]
-                    phase.reward += player0.rewards_possible[i][j] * 0.0004
+                    #phase.reward += player0.rewards_possible[i][j] * 0.0002
                     
 
                 if player1.rewards_possible[i][j] != 0:
@@ -820,7 +833,7 @@ def roll_dice():
                         player1.resource_brick += player1.rewards_possible[i][j]
                     elif board.tiles_ore[i][j] == 1:
                         player1.resource_ore += player1.rewards_possible[i][j]
-                    phase.reward += player0.rewards_possible[i][j] * 0.0004
+                    #phase.reward += player0.rewards_possible[i][j] * 0.0002
                 player_log[game.cur_player].total_resources_found += player0.rewards_possible[i][j]
     return roll
 
@@ -895,7 +908,7 @@ def steal_card():
     random_testing.steal_card += 1
     player = players[game.cur_player]
     opponent = players[1-game.cur_player]
-    phase.reward += 0.0004
+    #phase.reward += 0.0004
     opponent_resources_total = opponent.resource_lumber + opponent.resource_brick + opponent.resource_wool + opponent.resource_grain + opponent.resource_ore
     if opponent_resources_total != 0:
         random_resource = np.random.choice(np.arange(1, 6), p=[opponent.resource_lumber/opponent_resources_total, opponent.resource_brick/opponent_resources_total, opponent.resource_wool/opponent_resources_total, opponent.resource_grain/opponent_resources_total, opponent.resource_ore/opponent_resources_total])
@@ -977,7 +990,7 @@ def activate_yearofplenty_func(resource1,resource2):
         elif resource2 == 5:
             player.resource_ore = player.resource_ore + 1
         random_testing.successful_activate_yearofplenty_func += 1
-        phase.reward += 0.0008
+        #phase.reward += 0.0008
         player_log[game.cur_player].total_resources_found += 2
         phase.statechange = 1
         player_log[game.cur_player].total_development_cards_used += 1
@@ -994,27 +1007,27 @@ def activate_monopoly_func(resource):
         if resource == 1:
             player.resource_lumber = player.resource_lumber + opponent.resource_lumber
             opponent.resource_lumber = 0
-            phase.reward += 0.0004 * opponent.resource_lumber
+            #phase.reward += 0.0004 * opponent.resource_lumber
             player_log[game.cur_player].total_resources_found += opponent.resource_lumber
         elif resource == 2:
             player.resource_wool = player.resource_wool + opponent.resource_wool
             opponent.resource_wool = 0
-            phase.reward += 0.0004 * opponent.resource_wool
+            #phase.reward += 0.0004 * opponent.resource_wool
             player_log[game.cur_player].total_resources_found += opponent.resource_wool
         elif resource == 3:
             player.resource_grain = player.resource_grain + opponent.resource_grain
             opponent.resource_grain = 0
-            phase.reward += 0.0004 * opponent.resource_grain
+            #phase.reward += 0.0004 * opponent.resource_grain
             player_log[game.cur_player].total_resources_found += opponent.resource_grain
         elif resource == 4:
             player.resource_brick = player.resource_brick + opponent.resource_brick
             opponent.resource_brick = 0
-            phase.reward += 0.0004 * opponent.resource_brick
+            #phase.reward += 0.0004 * opponent.resource_brick
             player_log[game.cur_player].total_resources_found += opponent.resource_brick
         elif resource == 5:
             player.resource_ore = player.resource_ore + opponent.resource_ore
             opponent.resource_ore = 0
-            phase.reward += 0.0004 * opponent.resource_ore
+            #phase.reward += 0.0004 * opponent.resource_ore
             player_log[game.cur_player].total_resources_found += opponent.resource_ore
         
         random_testing.successful_activate_monopoly_func += 1
@@ -1378,21 +1391,33 @@ def move_finished():
     random_testing.numberofturns += 1
 
     #phase.reward = ((player0.victorypoints - player1.victorypoints) - (player0.victorypoints_before - player1.victorypoints_before))*0.02
-    if game.cur_player == 0:
-        phase.reward += (player0.victorypoints - player0.victorypoints_before) * 0.02
-    if game.cur_player == 1:
-        phase.reward += (player1.victorypoints - player1.victorypoints_before) * 0.02
+    #if game.cur_player == 0:
+        #phase.reward += (player0.victorypoints - player0.victorypoints_before) * 0.02
+    #if game.cur_player == 1:
+        #phase.reward += (player1.victorypoints - player1.victorypoints_before) * 0.02
     
     player0.victorypoints_before = player0.victorypoints
-    player1.victorypoints_before = player1.victorypoints
-    
+    player1.victorypoints_before = player1.victorypoints   
     if player.victorypoints >= 10:
         if game.cur_player == 0: 
-            phase.reward += 1  
+            #phase.reward += (1 + (players[game.cur_player].victorypoints - players[1-game.cur_player].victorypoints) * 0.02 + (phase.statechangecount - phase.statechangecountafter) * 0.0001 - phase.gamemoves * 0.00002)
+            phase.reward += 1 + (players[game.cur_player].victorypoints - players[1-game.cur_player].victorypoints) * 0.02
+            print(phase.reward)
+            phase.victoryreward = 1
+            phase.victorypointreward = (players[game.cur_player].victorypoints - players[1-game.cur_player].victorypoints) * 0.02
+            phase.legalmovesreward = (phase.statechangecount - phase.statechangecountafter) * 0.0001
+            phase.illegalmovesreward = -phase.gamemoves * 0.00002
             player0.wins += 1
         else: 
-            phase.reward -= 1
+            #phase.reward -= (1 + (players[game.cur_player].victorypoints - players[1-game.cur_player].victorypoints) * 0.02 - (phase.statechangecount - phase.statechangecountafter) * 0.0001 + phase.gamemoves * 0.00002)
+            phase.reward -= (1 + (players[game.cur_player].victorypoints - players[1-game.cur_player].victorypoints) * 0.02)
+            print(phase.reward)
             player1.wins += 1
+            phase.victoryreward = -1
+            phase.victorypointreward = (players[game.cur_player].victorypoints - players[1-game.cur_player].victorypoints) * 0.02
+            phase.legalmovesreward = (phase.statechangecount - phase.statechangecountafter) * 0.0001
+            phase.illegalmovesreward = -phase.gamemoves * 0.00002
+        phase.statechangecountafter = phase.statechangecount
         random_testing.numberofgames += 1
         game.is_finished = 1
         player0_log.average_victory_points.insert(0, player0.victorypoints)
@@ -1456,6 +1481,11 @@ def move_finished():
         player1_log.average_knights_played.insert(0, player1_log.total_knights_played)
         if len(player1_log.average_knights_played) > 10:
             player1_log.average_knights_played.pop(10)
+
+        game.average_win_ratio.insert(0, 1-game.cur_player)
+        if len(game.average_win_ratio) > 20:
+            game.average_win_ratio.pop(20)
+
 
         player0_log.total_knights_played = 0
         player1_log.total_knights_played = 0	
@@ -1667,8 +1697,8 @@ def turn_starts():
         random_testing.resources_buy_settlement += 1
     if c == 7:
         total_resources = player.resource_lumber + player.resource_wool + player.resource_grain + player.resource_brick + player.resource_ore
-        if total_resources >= 7:
-            phase.reward = -0.0002*total_resources/2
+        #if total_resources >= 7:
+            #phase.reward = -0.0002*total_resources/2
         game.seven_rolled = 1
         
 
@@ -2105,7 +2135,7 @@ def action_executor():
 
             
 def random_assignment():
-    random_agent.random_action = np.random.choice(np.arange(1,46), p=[1/14, 1/14, 1/14, 1/14, 1/14, 1/70, 1/70, 1/70, 1/70, 1/70, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/280, 1/14, 1/14, 1/14, 1/14, 1/14, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70, 1/70])
+    random_agent.random_action = np.random.choice(np.arange(1,46), p=[1/14, 2/14, 1/14, 1/14, 3/14, 1/35, 1/35, 1/35, 1/35, 1/35, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/700, 1/14, 1/28, 1/28, 1/28, 1/28, 1/140, 1/140, 1/140, 1/140, 1/140, 1/700, 1/700, 1/700, 1/700, 1/700])    
     random_agent.random_position_y = np.random.choice(np.arange(0,11))
     random_agent.random_position_x = np.random.choice(np.arange(0,21))
     action_selecter(random_agent.random_action, random_agent.random_position_x, random_agent.random_position_y)
@@ -2442,8 +2472,6 @@ class BIGDQN(nn.Module):
             nn.Linear(1024,512),
         )
 
-        self.optimizer = optim.Adam(self.parameters(), lr = 0.001, amsgrad=True)
-        self.loss = nn.MSELoss()
 
 
 
@@ -2469,8 +2497,8 @@ class BIGDQN(nn.Module):
         return state
     
     
-class DQN(nn.Module):
-    def __init__(self, num_resBlocks = 5):
+class DQNMedium(nn.Module):
+    def __init__(self, num_resBlocks = 8):
         super().__init__()
 
         self.denselayer = nn.Sequential(
@@ -2489,11 +2517,11 @@ class DQN(nn.Module):
         
 
         self.ConvScalar = nn.Sequential(
-            nn.Conv2d(23,10,kernel_size=(5,3),padding=0,stride=(2,2)),
+            nn.Conv2d(23,10,kernel_size=(3,5),padding=0,stride=(2,2)),
             nn.BatchNorm2d(10),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(400, 128),
+            nn.Linear(450, 128),
             nn.ReLU(),
             nn.Linear(128, 64),
         )
@@ -2504,11 +2532,11 @@ class DQN(nn.Module):
 
         #quite a lot of features, hope that this works
         self.ConvCombine = nn.Sequential(
-            nn.Conv2d(23,10,kernel_size=(5,3),padding=0,stride=(2,2)),
+            nn.Conv2d(23,10,kernel_size=(3,5),padding=0,stride=(2,2)),
             nn.BatchNorm2d(10),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(400, 256),
+            nn.Linear(450, 256),
             nn.ReLU(),
             nn.Linear(256, 256),           
             #combine the last layer of DenseConv with the last one of ConvCombine
@@ -2530,9 +2558,67 @@ class DQN(nn.Module):
             nn.Linear(256,256),
         )
 
-        self.optimizer = optim.Adam(self.parameters(), lr = 0.001, amsgrad=True)
-        self.loss = nn.MSELoss()
 
+        # adding the outputs of self.denselayer and self.ConvScalar
+
+        # I think I logaically need to combine them earlier
+        # Let's think about that in school  
+
+        # I probably need to add a conv layer before the res layer but let's see
+
+class DQN(nn.Module):
+    def __init__(self, num_resBlocks = 4):
+        super().__init__()
+
+        self.denselayer = nn.Sequential(
+            nn.Linear(35,64),
+            nn.ReLU(),
+            nn.Linear(64,64),
+
+        
+        )
+        self.denseFinal = nn.Sequential(
+            nn.Linear(128,41),
+        )
+        
+
+        self.ConvScalar = nn.Sequential(
+            nn.Conv2d(23,5,kernel_size=(3,5),padding=0,stride=(2,2)),
+            nn.BatchNorm2d(5),
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(225, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+        )
+
+        self.ConvConv = nn.ModuleList(
+            [ResBlock() for i in range(num_resBlocks)]
+        )
+
+        #quite a lot of features, hope that this works
+        self.ConvCombine = nn.Sequential(
+            nn.ReLU(),
+            nn.Flatten(),
+            nn.Linear(450, 128),          
+            #combine the last layer of DenseConv with the last one of ConvCombine
+        )
+
+        self.ConvCombineFinal = nn.Sequential(
+            nn.Linear(256,11*21*4),
+        )
+        #That might be too much of an incline, but let's see how it goes
+        self.DenseConv = nn.Sequential(
+            nn.Linear(35,64),
+            nn.ReLU(),
+            nn.Linear(64,128),
+        )
+
+        self.ResnetChange = nn.Sequential(
+            nn.Conv2d(23,10,kernel_size=(3,5),padding=0,stride=(2,2)),
+            nn.BatchNorm2d(10),
+            nn.ReLU(),
+        )
 
 
         # adding the outputs of self.denselayer and self.ConvScalar
@@ -2547,8 +2633,9 @@ class DQN(nn.Module):
         x1 = self.denselayer(vectorstate2)
         x2 = self.ConvScalar(boardstate2)
         y1 = self.DenseConv(vectorstate2)
+        y2 = self.ResnetChange(boardstate2)
         for resblock in self.ConvConv:
-            y2 = resblock(boardstate2)
+            y2 = resblock(y2)
         y2 = self.ConvCombine(y2)
         #is this the right dimension in which I concentate?
         y = torch.cat((y1,y2),1)
@@ -2560,6 +2647,21 @@ class DQN(nn.Module):
     
 # might change the number of hidden layers later on 
 class ResBlock(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.conv1 = nn.Conv2d(10, 10, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(10)
+        self.conv2 = nn.Conv2d(10, 10, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(10)
+    def forward(self,x):
+        residual = x
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = self.bn2(self.conv2(x))
+
+        x += residual
+        x = F.relu(x)
+        return x
+class ResBlock_Medium_Big(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv1 = nn.Conv2d(23, 23, kernel_size=3, padding=1)
@@ -2594,12 +2696,15 @@ class ResBlock(nn.Module):
 
 
 BATCH_SIZE = 8
-GAMMA = 0.99
+GAMMA = 0.999
 EPS_START = 1
 EPS_END = 0.05
 EPS_DECAY = 200000
 TAU = 0.002
-LR = 0.005
+
+LR_START = 0.003
+LR_END = 0.0002
+LR_DECAY = 2000000
 
 total_actions = 21*11*4 + 41
 action_counts = [0] * total_actions
@@ -2622,18 +2727,27 @@ agent2_policy_net.apply(weights_init)
 target_net = DQN().to(device)
 target_net.load_state_dict(agent1_policy_net.state_dict())
 
-optimizer = optim.Adam(agent1_policy_net.parameters(), lr = LR, amsgrad=True)
-memory = ReplayMemory(5000)
+optimizer = optim.Adam(agent1_policy_net.parameters(), lr = LR_START, amsgrad=True)
+memory = ReplayMemory(100000)
 
 steps_done = 0
+
+#different types of reward shaping: Immidiate rewards vps, immidiate rewards legal/illegal, immidiate rewards ressources produced, rewards at the end for winning/losing (+vps +legal/illegal)
 
 def select_action(boardstate, vectorstate):
     global steps_done
     sample = random.random()
     eps_threshold = EPS_END + (EPS_START - EPS_END)*math.exp(-1. * steps_done / EPS_DECAY)
+
+    lr = LR_END + (LR_START - LR_END) * math.exp(-1. * steps_done / LR_DECAY)
+    
+    # Update the learning rate
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
     if sample > eps_threshold:
         with torch.no_grad():
             if game.cur_player == 0:
+                phase.actionstarted += 1
                 action = agent1_policy_net(boardstate, vectorstate).max(1).indices.view(1,1)
                 if action >= 4*11*21:
                     final_action = action - 4*11*21 + 5
@@ -2645,20 +2759,22 @@ def select_action(boardstate, vectorstate):
                     position_x = action % 21 
                 action_selecter(final_action, position_x, position_y)
                 action_counts[action] += 1
+                if phase.actionstarted >= 5:
+                    action_selecter(5,0,0)
                 return action
-            elif game.cur_player == 1:
-                action =  agent2_policy_net(boardstate, vectorstate).max(1).indices.view(1,1) 
-                if action >= 4*11*21:
-                    final_action = action - 4*11*21 + 5
-                    position_y = 0
-                    position_x = 0
-                else:
-                    final_action = math.ceil((action/11/21)+1)
-                    position_y = math.floor((action - ((final_action-1)*11*21))/21)
-                    position_x = action % 21 
-                action_selecter(final_action, position_x, position_y)
-                action_counts[action] += 1
-                return action
+            #elif game.cur_player == 1:
+            #    action =  agent2_policy_net(boardstate, vectorstate).max(1).indices.view(1,1) 
+            #    if action >= 4*11*21:
+            #        final_action = action - 4*11*21 + 5
+            #        position_y = 0
+            #        position_x = 0
+            #    else:
+            #        final_action = math.ceil((action/11/21)+1)
+            #        position_y = math.floor((action - ((final_action-1)*11*21))/21)
+            #        position_x = action % 21 
+            #    action_selecter(final_action, position_x, position_y)
+            #    action_counts[action] += 1
+            #    return action
     else:
         final_action,position_x,position_y = random_assignment()
         if final_action > 4:
@@ -2690,6 +2806,17 @@ def log(num_episode):
     wandb.log({"random_testing.move_finsihed":random_testing.move_finished}, step=num_episode)
     wandb.log({"phase.statechangecount": phase.statechangecount}, step=num_episode)
 
+    wandb.log({"phase.reward": phase.reward}, step=num_episode)
+    wandb.log({"phase.victoyreward": phase.victoryreward}, step=num_episode)
+    wandb.log({"phase.victorypointreward": phase.victorypointreward}, step=num_episode)
+    wandb.log({"phase.illegalmovesreward": phase.illegalmovesreward}, step=num_episode)
+    wandb.log({"phase.legalmovesreward": phase.legalmovesreward}, step=num_episode)
+
+    phase.victoryreward = 0
+    phase.victoryreward = 0
+    phase.illegalmovesreward = 0
+    phase.legalmovesreward = 0
+
     fig = go.Figure(data=go.Scatter(
         x=list(call_counts.keys()), 
         y=list(call_counts.values()), 
@@ -2702,7 +2829,11 @@ def log(num_episode):
         )
     ))
 
+
     wandb.log({"Function Call Counts": wandb.Plotly(fig)}, step=num_episode)
+
+    wandb.log({"game.average_win_ratio": sum(game.average_win_ratio)/20}, step=num_episode)
+    wandb.log({"game.average_legal_moves_ratio": sum(game.average_legal_moves_ratio)/20}, step=num_episode)
 
     wandb.log({"game.average_time": sum(game.average_time)/10}, step=num_episode)
     wandb.log({"game.average_moves": sum(game.average_moves)/10}, step=num_episode)
@@ -2730,6 +2861,7 @@ def log(num_episode):
 
     wandb.log({"game.average_reward_per_move": sum(game.average_reward_per_move)/1000}, step=num_episode)
     wandb.log({"game.average_expected_state_action_value": sum(game.average_expected_state_action_value)/1000}, step=num_episode)
+    
     #for i in range (len(action_counts)):
     #    wandb.log({f"Action {i-1}": action_counts[i-1]})
     #
@@ -2788,46 +2920,87 @@ num_episodes = 1000
 for i_episode in range (num_episodes):
     time_new_start = time.time()
     print(i_episode)
-    if i_episode % 20 == 19:
-        torch.save(agent1_policy_net.state_dict(), f'agent{i_episode}_policy_net_0_0_3.pth')
-        agent2_policy_net.load_state_dict(torch.load(f'agent{i_episode}_policy_net_0_0_3.pth'))
+    if i_episode % 50 == 49:
         target_net.load_state_dict(agent1_policy_net.state_dict())
         
-    for t in count():
-        cur_boardstate =  state_changer()[0]
-        cur_vectorstate = state_changer()[1]
-        cur_boardstate = torch.tensor(cur_boardstate, device = device, dtype = torch.float).unsqueeze(0)
-        cur_vectorstate = torch.tensor(cur_vectorstate, device = device, dtype = torch.float).unsqueeze(0)
+    if i_episode % 20 == 19:
+        torch.save(agent1_policy_net.state_dict(), f'agent{i_episode}_policy_net_0_1_1.pth')
+        #agent2_policy_net.load_state_dict(torch.load(f'agent{i_episode}_policy_net_0_0_4.pth'))
 
+    for t in count():
         
         if game.cur_player == 1:
-            action = select_action(cur_boardstate, cur_vectorstate)
+            
+            final_action,position_x,position_y = random_assignment()
+            if final_action > 4:
+                action = final_action + 4*11*21 - 5
+            else:
+                action = (final_action-1)*11*21 + position_y*21 + position_x 
+            random_action_counts[action] += 1
+            action = torch.tensor([[action]], device=device, dtype=torch.long)
+            game.random_action_made = 1
+            phase.actionstarted = 0
             if phase.statechange == 1:
                 #calculate reward and check done
-                next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
-                reward = torch.tensor([reward], device = device)
-                next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
-                next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
+                #next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
+                #reward = torch.tensor([reward], device = device)
+                #next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
+                #next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
 
-                if done == 1:
+                if game.is_finished == 1: #this is mormally the var done
+                    game.cur_player = 0
+                    cur_boardstate =  state_changer()[0]
+                    cur_vectorstate = state_changer()[1]
+                    cur_boardstate = cur_boardstate.clone().detach().unsqueeze(0).to(device).float()        
+                    cur_vectorstate = cur_vectorstate.clone().detach().unsqueeze(0).to(device).float()
+                    next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
+                    reward = torch.tensor([reward], device = device)
+                    print(reward)
+                    next_board_state = next_board_state.clone().detach().unsqueeze(0).to(device).float()
+                    next_vector_state = next_vector_state.clone().detach().unsqueeze(0).to(device).float()
+                    if done == 1:
+                        phase.gamemoves = t
+                        print("done0")
+                        next_board_state = None
+                        next_vector_state = None
+                    memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
+                    cur_boardstate = next_board_state
+                    cur_vectorstate = next_vector_state
+                    optimize_model()
                     next_board_state = None
                     next_vector_state = None
-                cur_boardstate = next_board_state
-                cur_vector_state = next_vector_state
-                if done == 1:
+                #cur_boardstate = next_board_state
+                #cur_vector_state = next_vector_state
+                if game.is_finished == 1: #this is mormally the var done
+                    phase.gamemoves = t
                     print("done1")
                     game.is_finished = 0
                     episode_durations.append(t+1)
                     break
+            #else:
+            #    phase.reward -= 0.0001
+            #    sample = random.random()
+            #    if sample < 0.3:
+            #        next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished
+            #        reward = torch.tensor([reward], device = device)
+            #        next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
+            #        next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
+            #        memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
         elif game.cur_player == 0:
+            cur_boardstate =  state_changer()[0]
+            cur_vectorstate = state_changer()[1]
+            cur_boardstate = cur_boardstate.clone().detach().unsqueeze(0).to(device).float()        
+            cur_vectorstate = cur_vectorstate.clone().detach().unsqueeze(0).to(device).float()
             action = select_action(cur_boardstate, cur_vectorstate)
             #calculate reward and check done
             if phase.statechange == 1:
+                #phase.reward += 0.0001
                 next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
                 reward = torch.tensor([reward], device = device)
-                next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
-                next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
+                next_board_state = next_board_state.clone().detach().unsqueeze(0).to(device).float()
+                next_vector_state = next_vector_state.clone().detach().unsqueeze(0).to(device).float()
                 if done == 1:
+                    phase.gamemoves = t
                     print("done0")
                     next_board_state = None
                     next_vector_state = None
@@ -2836,24 +3009,33 @@ for i_episode in range (num_episodes):
                 cur_vectorstate = next_vector_state
                 optimize_model()
 
-                target_net_state_dict = target_net.state_dict()
-                policy_net_state_dict = agent1_policy_net.state_dict()
+                #target_net_state_dict = target_net.state_dict()
+                #policy_net_state_dict = agent1_policy_net.state_dict()
                 #I might do a mix later on
                 #for key in policy_net_state_dict:
                 #    target_net_state_dict[key] = TAU*policy_net_state_dict[key] + (1-TAU)*target_net_state_dict[key]
-                target_net.load_state_dict(target_net_state_dict)
+                #target_net.load_state_dict(target_net_state_dict)
+
+                #target_net_state_dict = target_net.state_dict()
+                #policy_net_state_dict = agent1_policy_net.state_dict()
+                #for key in policy_net_state_dict:
+                #    target_net_state_dict[key] = TAU*policy_net_state_dict[key] + (1-TAU)*target_net_state_dict[key]
+                #target_net.load_state_dict(target_net_state_dict)
+
+
                 if done == 1:
+                    phase.gamemoves = t
                     game.is_finished = 0
                     episode_durations.append(t+1)
                     break
-            elif game.random_action_made == 1:
-                phase.reward -= 0.0001
+            else:
+                #phase.reward -= 0.00002 #does this gradient get to small? Should I rather add a reward for successful moves?
                 sample = random.random()
-                if sample < 0.02:
+                if sample < 0.05:
                     next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished
                     reward = torch.tensor([reward], device = device)
-                    next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
-                    next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
+                    next_board_state = next_board_state.clone().detach().unsqueeze(0).to(device).float()
+                    next_vector_state = next_vector_state.clone().detach().unsqueeze(0).to(device).float()
                     memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
         
         steps_done += phase.statechange
@@ -2876,6 +3058,15 @@ for i_episode in range (num_episodes):
     game.average_moves.insert(0, t+1)
     if len(game.average_moves) > 10:
         game.average_moves.pop(10)
+    if i_episode > 1:
+
+        game.average_legal_moves_ratio.insert(0, (phase.statechangecount - statechangecountprevious)/t)
+        if len(game.average_legal_moves_ratio) > 20:
+            game.average_legal_moves_ratio.pop(20)
+    statechangecountprevious = phase.statechangecount
+    phase.statechange = 0
+    game.random_action_made = 0
+    phase.reward = 0
     
     
 print('Complete')
