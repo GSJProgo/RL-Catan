@@ -1,6 +1,5 @@
-# Catan
-### Main file: 
-- RL_catan_0_1.py
+# Reinforcement learning DQN and AC3 implementation for Catan
+
   
 
 
