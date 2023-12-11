@@ -1,0 +1,16 @@
+from Neural_Networks import A3C_Small
+
+NEURAL_NET = A3C_Small.ActorCritic()
+
+BATCH_SIZE = 8
+GAMMA = 0.999
+EPS_START = 1
+EPS_END = 0.05
+EPS_DECAY = 200000
+TAU = 0.002
+
+LR_START = 0.003
+LR_END = 0.0002
+LR_DECAY = 2000000
+
+TOTAL_ACTIONS = 21*11*4 + 41
