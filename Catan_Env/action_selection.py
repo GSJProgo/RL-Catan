@@ -1,17 +1,10 @@
-from Catan_Env.catan_env import players
-from Catan_Env.catan_env import game
-from Catan_Env.catan_env import player_action
-from Catan_Env.catan_env import player_keepresources
-from Catan_Env.catan_env import player_trading
-from Catan_Env.catan_env import action_executor
-from Catan_Env.board import board
+def action_selecter(env,selected_action, selected_position_x = 0, selected_position_y = 0):
+    board = env.board
+    action = env.player_action[env.game.cur_player]
+    keepresources = env.player_keepresources[env.game.cur_player]
+    trading = env.player_trading[env.game.cur_player]
 
-def action_selecter(selected_action, selected_position_x = 0, selected_position_y = 0):
-
-    player = players[game.cur_player]
-    action = player_action[game.cur_player]
-    keepresources = player_keepresources[game.cur_player]
-    trading = player_trading[game.cur_player]
+    env.total_step += 1
 
     action.rober_move = action.rober_move * board.ZEROBOARD
     action.road_place = action.road_place * board.ZEROBOARD
@@ -154,4 +147,4 @@ def action_selecter(selected_action, selected_position_x = 0, selected_position_
     if selected_action == 45:
         action.monopoly_ore = 1      
 
-    action_executor()
+    env.action_executor()

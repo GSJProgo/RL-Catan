@@ -1,8 +1,16 @@
-from Catan_Env.catan_env import board, game, phase, player0, player1, players
+from Catan_Env.catan_env import Catan_Env
 import numpy as np
 import torch 
 
-def state_changer():
+def state_changer(env):
+    players = env.players
+    game = env.game
+    board = env.board
+    player0 = players[0]
+    player1 = players[1]
+
+    phase = env.phase
+
     player = players[game.cur_player]
     opponent = players[1 - game.cur_player]
     #23
@@ -69,6 +77,6 @@ def state_changer():
         player.yearofplenty_move_pending,
         player.discard_resources_started,
     ))
-    torch_board_tensor = torch.from_numpy(np_board_tensor)
-    torch_vector_tensor = torch.from_numpy(np_vector_tensor)
+    torch_board_tensor = torch.from_numpy(np_board_tensor[None,:]).float()
+    torch_vector_tensor = torch.from_numpy(np_vector_tensor[None,:]).float()
     return torch_board_tensor, torch_vector_tensor

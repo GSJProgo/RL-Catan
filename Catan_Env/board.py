@@ -53,46 +53,45 @@ class Board:
         self.longest_road = np.zeros((_NUM_ROWS,_NUM_COLS))
         self.increasing_roads = np.zeros((_NUM_ROWS,_NUM_COLS))
 
-board = Board()
-def harbors_building():
-    # Define harbor locations
 
-    board.harbors_possible[0] = [[0,4],[0,6]]
-    board.harbors_possible[1] = [[0,10],[0,12]]
-    board.harbors_possible[2] = [[2,16],[2,18]]
-    board.harbors_possible[3] = [[2,2],[4,2]]
-    board.harbors_possible[4] = [[6,2],[8,2]]
-    board.harbors_possible[5] = [[10,4],[10,6]]
-    board.harbors_possible[6] = [[10,10],[10,12]]
-    board.harbors_possible[7] = [[8,16],[8,18]]
-    board.harbors_possible[8] = [[4,20],[6,20]]
+    def harbors_building(self):
+        # Define harbor locations
 
-  
-def tiles_buidling():
-    for i in range(1,10,2):
-        for j in range(2 + abs(5-i),20 - abs(5-i),4):
-            board.TILES_POSSIBLE[i][j] = 1
+        self.harbors_possible[0] = [[0,4],[0,6]]
+        self.harbors_possible[1] = [[0,10],[0,12]]
+        self.harbors_possible[2] = [[2,16],[2,18]]
+        self.harbors_possible[3] = [[2,2],[4,2]]
+        self.harbors_possible[4] = [[6,2],[8,2]]
+        self.harbors_possible[5] = [[10,4],[10,6]]
+        self.harbors_possible[6] = [[10,10],[10,12]]
+        self.harbors_possible[7] = [[8,16],[8,18]]
+        self.harbors_possible[8] = [[4,20],[6,20]]
 
-
-def settlements_building():
-    for i in range(0,11,2):
-        for j in range(-1 + abs(5-i),23 - abs(5-i),2):
-            board.settlements_available[i][j] = 1  
-            print(i,j)
-            print(board.settlements_available)
+    
+    def tiles_buidling(self):
+        for i in range(1,10,2):
+            for j in range(2 + abs(5-i),20 - abs(5-i),4):
+                self.TILES_POSSIBLE[i][j] = 1
 
 
-def roads_building():
-    for i in range(0,10,1):
-        for j in range(0,20,1):
-            if board.settlements_available[i + 1][j] == 1 and board.settlements_available[i - 1][j] == 1:
-                board.roads_available[i][j] = 1
-            elif board.settlements_available[i + 1][j + 1] == 1 and board.settlements_available[i - 1][j + 1] == 1:
-                board.roads_available[i][j+1] = 1
-            elif board.settlements_available[i][j + 1] == 1 and board.settlements_available[i][j - 1] == 1:
-                board.roads_available[i][j] = 1
-            elif board.settlements_available[i + 1][j + 1] == 1 and board.settlements_available[i + 1][j - 1] == 1:
-                board.roads_available[i+1][j] = 1
+    def settlements_building(self):
+        for i in range(0,11,2):
+            for j in range(-1 + abs(5-i),23 - abs(5-i),2):
+                self.settlements_available[i][j] = 1  
+                
 
 
-    board.roads_available = board.roads_available*(1-board.TILES_POSSIBLE)
+    def roads_building(self):
+        for i in range(0,10,1):
+            for j in range(0,20,1):
+                if self.settlements_available[i + 1][j] == 1 and self.settlements_available[i - 1][j] == 1:
+                    self.roads_available[i][j] = 1
+                elif self.settlements_available[i + 1][j + 1] == 1 and self.settlements_available[i - 1][j + 1] == 1:
+                    self.roads_available[i][j+1] = 1
+                elif self.settlements_available[i][j + 1] == 1 and self.settlements_available[i][j - 1] == 1:
+                    self.roads_available[i][j] = 1
+                elif self.settlements_available[i + 1][j + 1] == 1 and self.settlements_available[i + 1][j - 1] == 1:
+                    self.roads_available[i+1][j] = 1
+
+
+        self.roads_available = self.roads_available*(1-self.TILES_POSSIBLE)
