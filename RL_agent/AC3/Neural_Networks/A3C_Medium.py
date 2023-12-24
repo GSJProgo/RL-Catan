@@ -5,20 +5,24 @@ from torch.distributions import Categorical
 from utils import init_weights
 
 class ActorCritic(nn.Module):
-    def __init__(self, gamma = 0.99, num_resBlocks = 4):
+    def __init__(self, gamma = 0.99, num_resBlocks = 10):
         super().__init__()
 
         self.gamma = gamma
 
         self.denselayer = nn.Sequential(
-            nn.Linear(35,64),
+            nn.Linear(35,256),
             nn.ReLU(),
-            nn.Linear(64,64),
-
-        
+            nn.Linear(256,128),
+            nn.ReLU(),
+            nn.Linear(128,64), 
         )
         self.denseFinal = nn.Sequential(
-            nn.Linear(128,41),
+            nn.Linear(128,128),
+            nn.ReLU(),
+            nn.Linear(128,64),
+            nn.ReLU(),
+            nn.Linear(64,41)
         )
         
 
@@ -38,30 +42,40 @@ class ActorCritic(nn.Module):
 
         #quite a lot of features, hope that this works
         self.ConvCombine = nn.Sequential(
+            nn.Conv2d(23,46,kernel_size = 1, padding=0),
+            nn.BatchNorm2d(46),
             nn.ReLU(),
             nn.Flatten(),
-            nn.Linear(450, 128),          
-            #combine the last layer of DenseConv with the last one of ConvCombine
+            nn.Linear(46*11*21, 2048),
+            nn.ReLU(),
+            nn.Linear(2048, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 512),            
+            
         )
 
         self.ConvCombineFinal = nn.Sequential(
-            nn.Linear(256,11*21*4),
+            nn.Linear(768,1024),
+            nn.ReLU(),
+            nn.Linear(1024,1024),
+            nn.ReLU(),
+            nn.Linear(1024,11*21*4),
         )
         #That might be too much of an incline, but let's see how it goes
         self.DenseConv = nn.Sequential(
-            nn.Linear(35,64),
+            nn.Linear(35,1024),
             nn.ReLU(),
-            nn.Linear(64,128),
-        )
-
-        self.ResnetChange = nn.Sequential(
-            nn.Conv2d(23,10,kernel_size=(3,5),padding=0,stride=(2,2)),
-            nn.BatchNorm2d(10),
+            nn.Linear(1024,512),
             nn.ReLU(),
+            nn.Linear(512,256),
         )
 
         self.CombineValue = nn.Sequential(
-            nn.Linear(384, 128),
+            nn.Linear(896, 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
             nn.ReLU(),
             nn.Linear(128, 64),
             nn.ReLU(),
@@ -86,22 +100,21 @@ class ActorCritic(nn.Module):
         a = a.cpu()
         probs = F.softmax(logits, dim=1)
         m = self.distribution(probs)
-        entropy = m.entropy().cpu()
-        print(entropy.mean())
+        entropy = -m.entropy().cpu()
         exp_v = m.log_prob(a).cpu() * td.detach().squeeze().cpu()
         a_loss = -exp_v
         l2_activity_loss = torch.sum(logits**2).cpu()
 
-        if total_step % 2000 == 0:
-            print("c_loss: ", c_loss.mean()* 10**3)
-            print("a_loss: ", a_loss.mean())
-            print("entropy: ", entropy * 10**-3)
-            print("l2_activity_loss: ", l2_activity_loss * 10**-8)
-            print("total_loss: ", (c_loss * 10**3 + a_loss + entropy *10**-3 + l2_activity_loss * 10**-6).mean())
+        #if total_step % 2000 == 0:
+        #    print("c_loss: ", c_loss.mean()* 10**3)
+        #    print("a_loss: ", a_loss.mean())
+        #    print("entropy: ", entropy * 10**-3)
+        #    print("l2_activity_loss: ", l2_activity_loss * 10**-6)
+        #    print("total_loss: ", (c_loss * 10**3 + a_loss + entropy * 5 * 10**-3 + l2_activity_loss * 5 * 10**-6).mean())
 
 
-        total_loss = (c_loss * 10**3 + a_loss + entropy * 10**-4 + l2_activity_loss* 5*10**-7).mean()
-        return total_loss
+        total_loss = (c_loss * 10**3 + a_loss * 10 ** 2  + entropy * 2 * 10**-3 + l2_activity_loss* 5*10**-5).mean()
+        return total_loss, c_loss.mean() * 10 ** 3, a_loss.mean() * 10 ** 3, entropy.mean() * 2 * 10 ** -3, l2_activity_loss.mean() * 5 * 10 ** -5
 
     def choose_action(self,boardstate,vectorstate, env, total_step):
         torch.set_num_threads(1)
@@ -114,10 +127,10 @@ class ActorCritic(nn.Module):
         prob2 /= prob2.sum()
         if prob2.sum() == 0:
             print("no legal moves")
-        if total_step % 5000 == 0:
-            print(logits.sum())
-            print(logits)
-            print(prob)
+        #if total_step % 5000 == 0:
+        #    print(logits.sum())
+        #    print(logits)
+        #    print(prob)
             
         try: 
             m = self.distribution(prob2)
@@ -138,7 +151,7 @@ class ActorCritic(nn.Module):
         x1 = self.denselayer(vectorstate2)
         x2 = self.ConvScalar(boardstate2)
         y1 = self.DenseConv(vectorstate2)
-        y2 = self.ResnetChange(boardstate2)
+        y2 = boardstate2
         for resblock in self.ConvConv:
             y2 = resblock(y2)
         y2 = self.ConvCombine(y2)
@@ -158,10 +171,10 @@ class ActorCritic(nn.Module):
 class ResBlock(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(10, 10, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(10)
-        self.conv2 = nn.Conv2d(10, 10, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(10)
+        self.conv1 = nn.Conv2d(23, 23, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(23)
+        self.conv2 = nn.Conv2d(23, 23, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(23)
     def forward(self,x):
         residual = x
         x = F.relu(self.bn1(self.conv1(x)))

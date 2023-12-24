@@ -6,170 +6,254 @@ from itertools import count
 import time
 from itertools import product
 
+from utils import v_wrap, push_and_pull, record, init_weights
+
+from SharedAdam import SharedAdam
+from torch.optim.lr_scheduler import ExponentialLR
+
 import sys
 import os
 import sys
 print(sys.path)
 
-sys.path.append('/home/victor/maturarbeit/Catan')
+sys.path.append('/home/victor/Maturarbeit/Catan/RL-Catan-main')
+
+from log import Log
+import torch.multiprocessing as mp
+import torch.distributions as Categorical
+
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+from torch.distributions import Categorical
+from torch.multiprocessing import multiprocessing
+
 from config import *
-from RL_agent.DQN.log import log, logging
 
 from Catan_Env.state_changer import state_changer
 
 from Catan_Env.action_selection import action_selecter
 from Catan_Env.random_action import random_assignment
 
-from Catan_Env.catan_env import board, game, phase, player0, player1, players, new_game
+from Catan_Env.catan_env import Catan_Env, create_env
 
+from Neural_Networks.AC3_Medium_Leaky_Optimized import ActorCritic
 #plotting
 import wandb 
 import plotly.graph_objects as go
-wandb.init(project="RL-Catan", name="RL_version_0.1.1", config={})
 import os
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
+print("available_gpus", available_gpus)
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_3.0.0", config={}, group='finalrun3.0.0')
 
 torch.manual_seed(2)
 
-cur_boardstate = state_changer()[0]
-cur_vectorstate = state_changer()[1]
+def select_action(action, env):
 
-agent2_policy_net = NEURAL_NET.to(device)
-agent1_policy_net = NEURAL_NET.to(device)
-
-target_net = NEURAL_NET.to(device)
-target_net.load_state_dict(agent1_policy_net.state_dict())
-
-optimizer = optim.Adam(agent1_policy_net.parameters(), lr = LR_START, amsgrad=True)
-
-class Agent(mp.Process):
-    def __init__(self, global_actor_critic, optimizer, input_dims, n_actions, 
-                gamma, lr, name, global_ep_idx, env_id):
-        super(Agent, self).__init__()
-        self.local_actor_critic = ActorCritic(input_dims, n_actions, gamma)
-        self.global_actor_critic = global_actor_critic
-        self.name = 'w%02i' % name
-        self.episode_idx = global_ep_idx
-        self.env = gym.make(env_id)
-        self.optimizer = optimizer
-
-    def run(self):
-        t_step = 1
-        while self.episode_idx.value < N_GAMES:
-            done = False
-            observation = self.env.reset()
-            score = 0
-            self.local_actor_critic.clear_memory()
-            while not done:
-                action = self.local_actor_critic.choose_action(observation)
-                observation_, reward, done, info = self.env.step(action)
-                score += reward
-                self.local_actor_critic.remember(observation, action, reward)
-                if t_step % T_MAX == 0 or done:
-                    loss = self.local_actor_critic.calc_loss(done)
-                    self.optimizer.zero_grad()
-                    loss.backward()
-                    for local_param, global_param in zip(self.local_actor_critic.parameters(),self.global_actor_critic.parameters()):
-                        global_param._grad = local_param.grad
-                    self.optimizer.step()
-                    self.local_actor_critic.load_state_dict(self.global_actor_critic.state_dict())
-                    self.local_actor_critic.clear_memory()
-                t_step += 1
-                observation = observation_
-            with self.episode_idx.get_lock():
-                self.episode_idx.value += 1
-            print(self.name, 'episode ', self.episode_idx.value, 'reward %.1f' % score)
-
-if __name__ == '__main__':
-    lr = 1e-4
-    env_id = 'CartPole-v0'
-    n_actions = 2
-    input_dims = [4]
-    N_GAMES = 3000
-    T_MAX = 5
-    global_actor_critic = ActorCritic(input_dims, n_actions)
-    global_actor_critic.share_memory()
-    optim = SharedAdam(global_actor_critic.parameters(), lr=lr, 
-                        betas=(0.92, 0.999))
-    global_ep = mp.Value('i', 0)
-
-    workers = [Agent(global_actor_critic,
-                    optim,
-                    input_dims,
-                    n_actions,
-                    gamma=0.99,
-                    lr=lr,
-                    name=i,
-                    global_ep_idx=global_ep,
-                    env_id=env_id) for i in range(mp.cpu_count())]
-    [w.start() for w in workers]
-    [w.join() for w in workers]
+    with torch.no_grad():
+        
+        if action >= 4*11*21:
+            final_action = action - 4*11*21 + 5
+            position_y = 0
+            position_x = 0
+        else:
+            final_action = math.ceil(((action + 1)/11/21))
+            position_y = math.floor((action - ((final_action-1)*11*21))/21)
+            position_x = action % 21 
+        action_selecter(env, final_action, position_x, position_y)
+        return action
+       
 
 UPDATE_GLOBAL_ITER = 5
-GAMMA = 0.9
-MAX_EP = 3000
+GAMMA = 0.98
+MAX_EP = 500000
 
-env = gym.make('CartPole-v0')
-N_S = env.observation_space.shape[0]
-N_A = env.action_space.n
+
+
+
 
 class Worker(mp.Process):
-    def __init__(self, gnet, opt, global_ep, global_ep_r, res_queue, name):
+    def __init__(self, gnet, opt, global_ep, global_ep_r, res_queue, name, device, logger, global_device):
         super(Worker, self).__init__()
+        self.number = name
         self.name = 'w%02i' % name
         self.g_ep, self.g_ep_r, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = gnet, opt
-        self.lnet = ActorCritic()           # local network
-        self.env = gym.make('CartPole-v0').unwrapped
+        self.lnet = ActorCritic().to(device)           # local network
+        self.oppnet = ActorCritic().to(device)
+        self.env = Catan_Env()
+        # Set the CUDA device for each worker
+        self.device = torch.device("cuda:{}".format(device))
+        self.global_device = torch.device("cuda:{}".format(global_device))  
+        self.lnet = self.lnet.to(self.device)
+        self.logger = logger
+
+        self.hasassigned = 0
+        self.haslrupdated = 0
+       
+        print("self.device", self.device)
 
     def run(self):
+        log_dict = {}
+        step_dict = {}
+        value_dict = {}
         total_step = 1
+        average_loss = []
+        average_v_s_ = []
+        average_c_loss = []
+        average_a_loss = []
+        average_entropy = []
+        average_l2 = []
         while self.g_ep.value < MAX_EP:
-            s = self.env.reset()
-            buffer_s, buffer_a, buffer_r = [], [], []
+            self.haslrupdated = 1
+            
+            if self.g_ep.value % 1000 == 0:
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_3_0_0.pth')
+            
+            print("episode", self.g_ep.value)
+            self.env.new_game()
+            boardstate = state_changer(self.env)[0].to(self.device)
+            vectorstate = state_changer(self.env)[1].to(self.device)
+            buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
             ep_r = 0.
+            print("this is theee number", self.number)
+            if self.opt.param_groups[0]['lr'] > 2e-6:
+                self.opt.param_groups[0]['lr'] = 1e-4 * 0.9999 ** (self.g_ep.value)
+            else :
+                self.opt.param_groups[0]['lr'] = 4e-6 * 0.99998 ** (self.g_ep.value)
+            print("new_lr", self.opt.param_groups[0]['lr'])
             while True:
-                if self.name == 'w00':
-                    self.env.render()
-                a = self.lnet.choose_action(v_wrap(s[None, :]))
-                s_, r, done, _ = self.env.step(a)
-                if done: r = -1
-                ep_r += r
-                buffer_a.append(a)
-                buffer_s.append(s)
-                buffer_r.append(r)
+                if self.env.game.cur_player == 0:
+                    self.env.phase.statechange = 0
+                    a, meanlogits = self.lnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
+                    log_dict[f'meanlogits{self.name}'] = meanlogits
+                    select_action(a, self.env)
 
-                if total_step % UPDATE_GLOBAL_ITER == 0 or done:  # update global and assign to local net
-                    # sync
-                    push_and_pull(self.opt, self.lnet, self.gnet, done, s_, buffer_s, buffer_a, buffer_r, GAMMA)
-                    buffer_s, buffer_a, buffer_r = [], [], []
+                    boardstate_,vectorstate_, r, done =  state_changer(self.env)[0], state_changer(self.env)[1], self.env.phase.reward, self.env.game.is_finished
+                    self.logger.action_counts[a] += 1 
+                    self.env.phase.reward = 0
+                    boardstate_ = boardstate_.to(self.device)
+                    vectorstate_ = vectorstate_.to(self.device)
+                    ep_r += r #episode reward
+                    buffer_a.append(a)
+                    buffer_boardstate.append(boardstate)
+                    buffer_vectorstate.append(vectorstate)
+                    buffer_r.append(r)
+                    
+                    if total_step % UPDATE_GLOBAL_ITER == 0 or done:  # update global and assign to local net
+                        # sync
+                        v_s_, loss, c_loss, a_loss, entropy, l2 = push_and_pull(self.opt, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step)
+                        buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
 
-                    if done:  # done and print information
+                        average_loss.insert(0, loss)
+                        if len(average_loss) > 2000:
+                            average_loss.pop()
+                        average_v_s_.insert(0, v_s_)
+                        if len(average_v_s_) > 2000:
+                            average_v_s_.pop()
+                        average_c_loss.insert(0, c_loss)
+                        if len(average_c_loss) > 2000:
+                            average_c_loss.pop()
+                       
+                        average_entropy.insert(0, entropy)
+                        if len(average_entropy) > 2000:
+                            average_entropy.pop()
+                        average_l2.insert(0, l2)
+                        if len(average_l2) > 2000:
+                            average_l2.pop()
+
+                        if self.env.game.is_finished == 1:  # done and print information
+                            average_a_loss.insert(0, a_loss/total_step)
+                            if len(average_a_loss) > 50:
+                                average_a_loss.pop()
+                            self.env.game.is_finished = 0
+                            print(self.name, "has achieved total steps of", total_step)
+                            print(self.env.player0.victorypoints)
+                            print(self.env.player1.victorypoints)
+                            print("v_s_", v_s_)
+                            print("loss", loss)
+                            print("done")
+                            print("total reward =", ep_r)
+                            logging(self.env, self.logger, ep_r, v_s_, loss, total_step, average_loss, average_v_s_, average_c_loss, average_a_loss, average_entropy, average_l2)
+                            record(self.g_ep, self.g_ep_r, ep_r, self.res_queue, self.name)
+                            value_dict[f'v_s_{self.name}'] = v_s_
+                            step_dict[f'total_step{self.name}'] = total_step
+                            break
+
+                    #if self.g_ep.value % 20 == 0:
+                    #    if self.haslrupdated == 1:
+                    #        self.opt.param_groups[0]['lr'] = self.opt.param_groups[0]['lr'] * 0.9
+                    #        print("updating learning rate")
+                    #        print("new_lr", self.opt.param_groups[0]['lr'])
+                    #        self.haslrupdated = 0
+                    boardstate = boardstate_
+                    vectorstate = vectorstate_ 
+                    total_step += 1
+                else: 
+                    if self.g_ep.value < 36000 + self.number*6000:
+                        random_assignment(self.env)
+                    else:
+                        if self.g_ep.value % 36000 == self.number*6000:
+                            if self.hasassigned == 0:
+                                self.lnet.to(self.device)  # Ensure lnet is on the correct device
+                                self.oppnet.load_state_dict(self.lnet.state_dict())
+                                self.oppnet.to(self.device) 
+                                print("self.oppnet is uqoighdoigsjhodigh",self.oppnet)
+                                self.hasassigned = 1
+                        if self.g_ep.value % 6000 == 1:
+                            self.hasassigned = 0
+                        boardstate = state_changer(self.env)[0].to(self.device)
+                        vectorstate = state_changer(self.env)[1].to(self.device)
+                        a, meanlogits = self.oppnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
+                        select_action(a, self.env)
+                    if self.env.game.is_finished == 1:  # done and print information
+                        average_a_loss.insert(0, a_loss)
+                        if len(average_a_loss) > 50:
+                            average_a_loss.pop()
+                        print("done")
+                        print(self.name, "has achieved total steps of", total_step)
+                        print("total reward =", ep_r)
+                        self.env.game.is_finished = 0
+                        logging(self.env, self.logger, ep_r, 0, 0, total_step, average_loss, average_v_s_, average_c_loss, average_a_loss, average_entropy, average_l2)
                         record(self.g_ep, self.g_ep_r, ep_r, self.res_queue, self.name)
+                        total_step = 0
                         break
-                s = s_
-                total_step += 1
+                
         self.res_queue.put(None)
+    def update_learning_rate(self, new_lr):
+        for param_group in self.opt.param_groups:
+            param_group['lr'] = new_lr
+    
+
+
 
 
 if __name__ == "__main__":
-    gnet = Net(N_S, N_A)        # global network
+    torch.set_printoptions(precision=7)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    mp.set_start_method('spawn')
+    gnet = ActorCritic().to(device) # global network
+    
+    # Load the weights
+    #gnet.load_state_dict(torch.load("A3Cagent180_policy_net_0_1_1.pth"))
+    
     gnet.share_memory()         # share the global parameters in multiprocessing
     opt = SharedAdam(gnet.parameters(), lr=1e-4, betas=(0.92, 0.999))      # global optimizer
+    scheduler = ExponentialLR(opt, gamma=0.9999)
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
-
+    logger = Log()
     # parallel training
-    workers = [Worker(gnet, opt, global_ep, global_ep_r, res_queue, i) for i in range(mp.cpu_count())]
+    workers = [Worker(gnet, opt, global_ep, global_ep_r, res_queue, i, j, logger, 0) for i in range(6) for j in range(2)]
+    print("workers", workers)
     [w.start() for w in workers]
     res = []                    # record episode reward to plot
     while True:
+        scheduler.step()
+        for worker in workers:
+            worker.update_learning_rate(opt.param_groups[0]['lr'])
         r = res_queue.get()
         if r is not None:
             res.append(r)
@@ -177,276 +261,203 @@ if __name__ == "__main__":
             break
     [w.join() for w in workers]
 
-    import matplotlib.pyplot as plt
-    plt.plot(res)
-    plt.ylabel('Moving average ep reward')
-    plt.xlabel('Step')
-    plt.show()
+def logging(env, logger, global_ep_r, v_s_, loss, total_step, average_loss, average_v_s_, average_c_loss, average_a_loss, average_entropy, average_l2):
+    logger.total_episodes += 1
+    global_ep = logger.total_episodes
 
-
-memory = ReplayMemory(100000)
-
-
-
-#different types of reward shaping: Immidiate rewards vps, immidiate rewards legal/illegal, immidiate rewards ressources produced, rewards at the end for winning/losing (+vps +legal/illegal)
-
-
-
-def select_action(boardstate, vectorstate):
-    sample = random.random()
-    eps_threshold = EPS_END + (EPS_START - EPS_END)*math.exp(-1. * log.steps_done / EPS_DECAY)
-
-    lr = LR_END + (LR_START - LR_END) * math.exp(-1. * log.steps_done / LR_DECAY)
+    player0 = env.players[0]
+    player1 = env.players[1]
+    phase = env.phase
+    game = env.game
+    random_testing = env.random_testing
+    player0_log = env.player0_log
+    player1_log = env.player1_log
     
-    # Update the learning rate
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-    if sample > eps_threshold:
-        with torch.no_grad():
-            if game.cur_player == 0:
-                #phase.actionstarted += 1
-                action = agent1_policy_net(boardstate, vectorstate).max(1).indices.view(1,1)
-                if action >= 4*11*21:
-                    final_action = action - 4*11*21 + 5
-                    position_y = 0
-                    position_x = 0
-                else:
-                    final_action = math.ceil((action/11/21)+1)
-                    position_y = math.floor((action - ((final_action-1)*11*21))/21)
-                    position_x = action % 21 
-                action_selecter(final_action, position_x, position_y)
-                log.action_counts[action] += 1
-                #if phase.actionstarted >= 5:
-                #    action_selecter(5,0,0)
-                return action
-            #elif game.cur_player == 1:
-            #    action =  agent2_policy_net(boardstate, vectorstate).max(1).indices.view(1,1) 
-            #    if action >= 4*11*21:
-            #        final_action = action - 4*11*21 + 5
-            #        position_y = 0
-            #        position_x = 0
-            #    else:
-            #        final_action = math.ceil((action/11/21)+1)
-            #        position_y = math.floor((action - ((final_action-1)*11*21))/21)
-            #        position_x = action % 21 
-            #    action_selecter(final_action, position_x, position_y)
-            #    action_counts[action] += 1
-            #    return action
+
+    logger.average_legal_moves_ratio.insert(0, env.total_step/(phase.statechangecount + 1))
+    if len(logger.average_legal_moves_ratio) > 5:
+        logger.average_legal_moves_ratio.pop()
+    logger.average_moves.insert(0, env.total_step)
+    if len(logger.average_moves) > 5:
+        logger.average_moves.pop()
+
+    run.log({"game.average_moves": sum(logger.average_moves)/5})
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=list(range(len(logger.action_counts))), y=logger.action_counts, mode='markers', name='Action Counts'))
+    fig.add_trace(go.Scatter(x=list(range(len(logger.random_action_counts))), y=logger.random_action_counts, mode='markers', name='Random Action Counts'))
+    
+    if player0.wins == 1:
+        logger.average_win_ratio.insert(0, 1)
     else:
-        final_action,position_x,position_y = random_assignment()
-        if final_action > 4:
-            action = final_action + 4*11*21 - 5
-        else:
-            action = (final_action-1)*11*21 + position_y*21 + position_x 
-        log.random_action_counts[action] += 1
-        action_tensor = torch.tensor([[action]], device=device, dtype=torch.long)
-        game.random_action_made = 1
-        return action_tensor
-    
-episode_durations = []
+        logger.average_win_ratio.insert(0, 0)
+    if len(logger.average_win_ratio) > 5:
+        logger.average_win_ratio.pop()
+    logger.player0_totalwins += player0.wins
+    player0.wins = 0
+    logger.player1_totalwins += player1.wins
+    player1.wins = 0
 
-def plotting():
-    print()
-
-log_called = 0
-def optimize_model():
-    if len(memory) < BATCH_SIZE:
-        return
-    transitions = memory.sample(BATCH_SIZE)
-    batch = Transition(*zip(*transitions))
-
-    non_final_mask = torch.tensor(tuple(map(lambda s: s[0] is not None and s[1] is not None, zip(batch.next_boardstate, batch.next_vectorstate))), device=device, dtype=torch.bool)
-    non_final_next_board_states = torch.cat([s for s in batch.next_boardstate if s is not None])
-    non_final_next_vector_states = torch.cat([s for s in batch.next_vectorstate if s is not None])
-
-    state_batch = (torch.cat(batch.cur_boardstate), torch.cat(batch.cur_vectorstate))
-    action_batch = (torch.cat(batch.action))
-    reward_batch = torch.cat(batch.reward)
-    state_action_values = agent1_policy_net(*state_batch).gather(1, action_batch)
-
-    next_state_values = torch.zeros(BATCH_SIZE, device=device)
-
-    next_state_values[non_final_mask] = target_net(non_final_next_board_states, non_final_next_vector_states).max(1)[0].detach()
-
-    expected_state_action_values = (next_state_values * GAMMA) + reward_batch
-
-    loss = F.l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
-
-    #adding sum of state action and sum of expected state action values to wandb
-    game.average_q_value_loss.insert(0, loss.mean().item())
-    while len(game.average_q_value_loss) > 1000:
-        game.average_q_value_loss.pop(1000)
-
-    game.average_reward_per_move.insert(0, phase.reward)
-    while len(game.average_reward_per_move) > 1000:
-        game.average_reward_per_move.pop(1000)
-
-    game.average_expected_state_action_value.insert(0, expected_state_action_values.mean().item())
-    while len(game.average_expected_state_action_value) > 1000:
-        game.average_expected_state_action_value.pop(1000)
-
-    optimizer.zero_grad()
-    start_time = time.time()
-    loss.backward()
-    final_time = time.time() - start_time
-
-    optimizer.step()
-
-start_time = time.time()
+    run.log({"game.average_win_ratio": sum(logger.average_win_ratio)/5}, step=global_ep)
+    run.log({"Player 0 Wins": logger.player0_totalwins}, step=global_ep)
+    run.log({"Player 1 Wins": logger.player1_totalwins}, step=global_ep)
+    run.log({"Episode Duration": logger.episode_durations}, step=global_ep)
+    run.log({"Action Counts": wandb.Plotly(fig)}, step=global_ep)
+    logger.total_move_finished += random_testing.move_finished
 
 
-num_episodes = 1000
-for i_episode in range (num_episodes):
-    new_game()
-    time_new_start = time.time()
-    print(i_episode)
-    if i_episode % 50 == 49:
-        target_net.load_state_dict(agent1_policy_net.state_dict())
-            
-    if i_episode % 20 == 19:
-        torch.save(agent1_policy_net.state_dict(), f'agent{i_episode}_policy_net_0_1_1.pth')
-        #agent2_policy_net.load_state_dict(torch.load(f'agent{i_episode}_policy_net_0_0_4.pth'))
-
-    for t in count():
-        
-        if game.cur_player == 1:
-            
-            final_action,position_x,position_y = random_assignment()
-            if final_action > 4:
-                action = final_action + 4*11*21 - 5
-            else:
-                action = (final_action-1)*11*21 + position_y*21 + position_x 
-            log.random_action_counts[action] += 1
-            action = torch.tensor([[action]], device=device, dtype=torch.long)
-            game.random_action_made = 1
-            phase.actionstarted = 0
-            if phase.statechange == 1:
-                #calculate reward and check done
-                #next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
-                #reward = torch.tensor([reward], device = device)
-                #next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
-                #next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
-
-                if game.is_finished == 1: #this is mormally the var done
-                    game.cur_player = 0
-                    cur_boardstate =  state_changer()[0]
-                    cur_vectorstate = state_changer()[1]
-                    cur_boardstate = cur_boardstate.clone().detach().unsqueeze(0).to(device).float()        
-                    cur_vectorstate = cur_vectorstate.clone().detach().unsqueeze(0).to(device).float()
-                    next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
-                    reward = torch.tensor([reward], device = device)
-                    print(reward)
-                    next_board_state = next_board_state.clone().detach().unsqueeze(0).to(device).float()
-                    next_vector_state = next_vector_state.clone().detach().unsqueeze(0).to(device).float()
-                    if done == 1:
-                        phase.gamemoves = t
-                        print("done0")
-                        next_board_state = None
-                        next_vector_state = None
-                    memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
-                    cur_boardstate = next_board_state
-                    cur_vectorstate = next_vector_state
-                    optimize_model()
-                    next_board_state = None
-                    next_vector_state = None
-                #cur_boardstate = next_board_state
-                #cur_vector_state = next_vector_state
-                if game.is_finished == 1: #this is mormally the var done
-                    phase.gamemoves = t
-                    print("done1")
-                    game.is_finished = 0
-                    episode_durations.append(t+1)
-                    break
-            #else:
-            #    phase.reward -= 0.0001
-            #    sample = random.random()
-            #    if sample < 0.3:
-            #        next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished
-            #        reward = torch.tensor([reward], device = device)
-            #        next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
-            #        next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
-            #        memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
-        elif game.cur_player == 0:
-            cur_boardstate =  state_changer()[0]
-            cur_vectorstate = state_changer()[1]
-            cur_boardstate = cur_boardstate.clone().detach().unsqueeze(0).to(device).float()        
-            cur_vectorstate = cur_vectorstate.clone().detach().unsqueeze(0).to(device).float()
-            action = select_action(cur_boardstate, cur_vectorstate)
-            #calculate reward and check done
-            if phase.statechange == 1:
-                #phase.reward += 0.0001
-                next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
-                reward = torch.tensor([reward], device = device)
-                next_board_state = next_board_state.clone().detach().unsqueeze(0).to(device).float()
-                next_vector_state = next_vector_state.clone().detach().unsqueeze(0).to(device).float()
-                if done == 1:
-                    phase.gamemoves = t
-                    print("done0")
-                    next_board_state = None
-                    next_vector_state = None
-                memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
-                cur_boardstate = next_board_state
-                cur_vectorstate = next_vector_state
-                optimize_model()
-
-                #target_net_state_dict = target_net.state_dict()
-                #policy_net_state_dict = agent1_policy_net.state_dict()
-                #I might do a mix later on
-                #for key in policy_net_state_dict:
-                #    target_net_state_dict[key] = TAU*policy_net_state_dict[key] + (1-TAU)*target_net_state_dict[key]
-                #target_net.load_state_dict(target_net_state_dict)
-
-                #target_net_state_dict = target_net.state_dict()
-                #policy_net_state_dict = agent1_policy_net.state_dict()
-                #for key in policy_net_state_dict:
-                #    target_net_state_dict[key] = TAU*policy_net_state_dict[key] + (1-TAU)*target_net_state_dict[key]
-                #target_net.load_state_dict(target_net_state_dict)
-
-
-                if done == 1:
-                    phase.gamemoves = t
-                    game.is_finished = 0
-                    episode_durations.append(t+1)
-                    break
-            else:
-                #phase.reward -= 0.00002 #does this gradient get to small? Should I rather add a reward for successful moves?
-                sample = random.random()
-                if sample < 0.05:
-                    next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished
-                    reward = torch.tensor([reward], device = device)
-                    next_board_state = next_board_state.clone().detach().unsqueeze(0).to(device).float()
-                    next_vector_state = next_vector_state.clone().detach().unsqueeze(0).to(device).float()
-                    memory.push(cur_boardstate, cur_vectorstate,action,next_board_state, next_vector_state,reward)
-        
-        log.steps_done += phase.statechange
-        phase.statechangecount += phase.statechange
-        phase.statechange = 0
-        game.random_action_made = 0
-        phase.reward = 0
-        
-    a = int(t/100)
-    logging(i_episode)
-    elapsed_time = time.time() - start_time
-    wandb.log({"Elapsed Time": elapsed_time}, step=i_episode)
-    wandb.log({"t": t}, step = i_episode)
-    #print(t)
-    #print(player0.victorypoints)
-    #print(player1.victorypoints)
-    game.average_time.insert(0, time.time() - time_new_start) 
-    if len(game.average_time) > 10:
-        game.average_time.pop(10)
-    game.average_moves.insert(0, t+1)
-    if len(game.average_moves) > 10:
-        game.average_moves.pop(10)
-    if i_episode > 1:
-
-        game.average_legal_moves_ratio.insert(0, (phase.statechangecount - statechangecountprevious)/t)
-        if len(game.average_legal_moves_ratio) > 20:
-            game.average_legal_moves_ratio.pop(20)
-    statechangecountprevious = phase.statechangecount
-    phase.statechange = 0
-    game.random_action_made = 0
+    random_testing.move_finished = 0
+    run.log({"random_testing.move_finsihed":logger.total_move_finished}, step=global_ep)
+    logger.total_statechangecount += phase.statechangecount
+    phase.statechangecount = 0
+    run.log({"phase.statechangecount": logger.total_statechangecount}, step=global_ep)
+    logger.average_reward.insert(0, phase.reward)
+    if len(logger.average_reward) > 5:
+        logger.average_reward.pop()
     phase.reward = 0
+    run.log({"phase.reward": sum(logger.average_reward)/5}, step=global_ep)
+    logger.average_victory_reward.insert(0, phase.victoryreward)
+    if len(logger.average_victory_reward) > 5:
+        logger.average_victory_reward.pop()
+    phase.victoryreward = 0
+    run.log({"phase.victoyreward": sum(logger.average_victory_reward)/5}, step=global_ep)
+    logger.average_victor_point_reward.insert(0, phase.victorypointreward)
+    if len(logger.average_victor_point_reward) > 5:
+        logger.average_victor_point_reward.pop()
+    phase.victorypointreward = 0
+    run.log({"phase.victorypointreward": sum(logger.average_victor_point_reward)/5}, step=global_ep)
+    logger.average_illegal_moves_reward.insert(0, phase.illegalmovesreward)
+    if len(logger.average_illegal_moves_reward) > 5:
+        logger.average_illegal_moves_reward.pop()
+    phase.illegalmovesreward = 0
+    run.log({"phase.illegalmovesreward": sum(logger.average_illegal_moves_reward)/5}, step=global_ep)
+    logger.average_legal_moves_reward.insert(0, phase.legalmovesreward)
+    if len(logger.average_legal_moves_reward) > 5:
+        logger.average_legal_moves_reward.pop()
+    phase.legalmovesreward = 0
+    run.log({"phase.legalmovesreward": sum(logger.average_legal_moves_reward)/5}, step=global_ep)
+    logger.average_total_reward.insert(0, global_ep_r)
+    if len(logger.average_total_reward) > 5:
+        logger.average_total_reward.pop()
+    global_ep_r = 0
+    run.log({"global_ep_r.value": sum(logger.average_total_reward)/5}, step=global_ep)
     
+
+
+    run.log({"average_v_s_end": sum(logger.average_v_s_end)/5}, step=global_ep)
+
+    run.log({"average_loss_end": sum(logger.average_loss_end)/5}, step=global_ep)
+
+    run.log({"average_v_s_": sum(average_v_s_)/2000}, step=global_ep)
+    run.log({"average_loss": sum(average_loss)/2000}, step=global_ep)
+    run.log({"average_c_loss": sum(average_c_loss)/2000}, step=global_ep)
+    run.log({"average_a_loss": sum(average_a_loss)/50}, step=global_ep)
+    run.log({"average_entropy": sum(average_entropy)/2000}, step=global_ep)
+    run.log({"average_l2": sum(average_l2)/2000}, step=global_ep)
+
+    run.log({"Function Call Counts": wandb.Plotly(fig)}, step=global_ep)
     
-print('Complete')
+    run.log({"game.average_legal_moves_ratio": sum(logger.average_legal_moves_ratio)/5}, step=global_ep)
+
+    logger.average_time.insert(0, time.time() - logger.time)
+    if len(logger.average_time) > 5:
+        logger.average_time.pop(5)
+    logger.time = time.time()
+    run.log({"game.average_time": sum(logger.average_time)/5}, step=global_ep)
+    
+    run.log({"game.average_q_value_loss": sum(game.average_q_value_loss)/1000}, step=global_ep)
+    logger.player0_average_victory_points.insert(0, player0.victorypoints)
+    if len(logger.player0_average_victory_points) > 5:
+        logger.player0_average_victory_points.pop(5)
+    logger.player1_average_victory_points.insert(0, player1.victorypoints)
+    if len(logger.player1_average_victory_points) > 5:
+        logger.player1_average_victory_points.pop(5)
+    logger.player0_average_resources_found.insert(0, player0_log.total_resources_found)
+    if len(logger.player0_average_resources_found) > 5:
+        logger.player0_average_resources_found.pop(5)
+    logger.player1_average_resources_found.insert(0, player1_log.total_resources_found)
+    if len(logger.player1_average_resources_found) > 5:
+        logger.player1_average_resources_found.pop(5)
+    logger.player0_average_development_cards_bought.insert(0, player0_log.total_development_cards_bought)
+    if len(logger.player0_average_development_cards_bought) > 5:
+        logger.player0_average_development_cards_bought.pop(5)
+    logger.player1_average_development_cards_bought.insert(0, player1_log.total_development_cards_bought)
+    if len(logger.player1_average_development_cards_bought) > 5:
+        logger.player1_average_development_cards_bought.pop(5)
+    logger.player0_average_development_cards_used.insert(0, player0_log.total_development_cards_used)
+    if len(logger.player0_average_development_cards_used) > 5:
+        logger.player0_average_development_cards_used.pop(5)
+    logger.player1_average_development_cards_used.insert(0, player1_log.total_development_cards_used)
+    if len(logger.player1_average_development_cards_used) > 5:
+        logger.player1_average_development_cards_used.pop(5)
+    logger.player0_average_settlements_built.insert(0, player0_log.total_settlements_built)
+    if len(logger.player0_average_settlements_built) > 5:
+        logger.player0_average_settlements_built.pop(5)
+    logger.player1_average_settlements_built.insert(0, player1_log.total_settlements_built)
+    if len(logger.player1_average_settlements_built) > 5:
+        logger.player1_average_settlements_built.pop(5)
+    logger.player0_average_cities_built.insert(0, player0_log.total_cities_built)
+    if len(logger.player0_average_cities_built) > 5:
+        logger.player0_average_cities_built.pop(5)
+    logger.player1_average_cities_built.insert(0, player1_log.total_cities_built)
+    if len(logger.player1_average_cities_built) > 5:
+        logger.player1_average_cities_built.pop(5)
+    logger.player0_average_roads_built.insert(0, player0_log.total_roads_built)
+    if len(logger.player0_average_roads_built) > 5:
+        logger.player0_average_roads_built.pop(5)
+    logger.player1_average_roads_built.insert(0, player1_log.total_roads_built)
+    if len(logger.player1_average_roads_built) > 5:
+        logger.player1_average_roads_built.pop(5)
+    logger.player0_average_resources_traded.insert(0, player0_log.total_resources_traded)
+    if len(logger.player0_average_resources_traded) > 5:
+        logger.player0_average_resources_traded.pop(5)
+    logger.player1_average_resources_traded.insert(0, player1_log.total_resources_traded)
+    if len(logger.player1_average_resources_traded) > 5:
+        logger.player1_average_resources_traded.pop(5)
+    logger.player0_average_longest_road.insert(0, player0.roads_connected)
+    if len(logger.player0_average_longest_road) > 5:
+        logger.player0_average_longest_road.pop(5)
+    logger.player1_average_longest_road.insert(0, player1.roads_connected)
+    if len(logger.player1_average_longest_road) > 5:
+        logger.player1_average_longest_road.pop(5)
+
+    logger.player0_average_knights_played.insert(0, player0_log.total_knights_played)
+    if len(logger.player0_average_knights_played) > 5:
+        logger.player0_average_knights_played.pop(5)
+    logger.player1_average_knights_played.insert(0, player1_log.total_knights_played)
+    if len(logger.player1_average_knights_played) > 5:
+        logger.player1_average_knights_played.pop(5)
+
+
+    run.log({"player0_log.average_victory_points": sum(player0_log.average_victory_points)/5}, step=global_ep)
+    run.log({"player1_log.average_victory_points": sum(player1_log.average_victory_points)/5}, step=global_ep)
+    run.log({"player0_log.average_resources_found": sum(player0_log.average_resources_found)/5}, step=global_ep)
+    run.log({"player1_log.average_resources_found": sum(player1_log.average_resources_found)/5}, step=global_ep)
+    run.log({"player0_log.average_resources_traded": sum(player0_log.average_resources_traded)/5}, step=global_ep)
+    run.log({"player1_log.average_resources_traded": sum(player1_log.average_resources_traded)/5}, step=global_ep)
+    run.log({"player0_log.average_development_cards_bought": sum(player0_log.average_development_cards_bought)/5}, step=global_ep)
+    run.log({"player1_log.average_development_cards_bought": sum(player1_log.average_development_cards_bought)/5}, step=global_ep)
+    run.log({"player0_log.average_development_cards_used": sum(player0_log.average_development_cards_used)/5}, step=global_ep)
+    run.log({"player1_log.average_development_cards_used": sum(player1_log.average_development_cards_used)/5}, step=global_ep)
+    
+    run.log({"player0_log.average_roads_built": sum(player0_log.average_roads_built)/5}, step=global_ep)
+    run.log({"player1_log.average_roads_built": sum(player1_log.average_roads_built)/5}, step=global_ep)
+    run.log({"player0_log.average_settlements_built": sum(player0_log.average_settlements_built)/5}, step=global_ep)
+    run.log({"player1_log.average_settlements_built": sum(player1_log.average_settlements_built)/5}, step=global_ep)
+    run.log({"player0_log.average_cities_built": sum(player0_log.average_cities_built)/5}, step=global_ep)
+    run.log({"player1_log.average_cities_built": sum(player1_log.average_cities_built)/5}, step=global_ep)
+    run.log({"player0_log.average_knights_played": sum(player0_log.average_knights_played)/5}, step=global_ep)
+    run.log({"player1_log.average_knights_played": sum(player1_log.average_knights_played)/5}, step=global_ep)
+    run.log({"player0_log.average_longest_road": sum(player0_log.average_longest_road)/5}, step=global_ep)
+
+    run.log({"game.average_reward_per_move": sum(game.average_reward_per_move)/1000}, step=global_ep)
+    run.log({"game.average_expected_state_action_value": sum(game.average_expected_state_action_value)/1000}, step=global_ep)
+
+    env.total_step = 0
+    
+    #for i in range (len(action_counts)):
+    #    wandb.log({f"Action {i-1}": action_counts[i-1]})
+    #
+    #for i in range (len(random_action_counts)):
+    #    wandb.log({f"Random Action {i-1}": random_action_counts[i-1]})
+

@@ -44,9 +44,20 @@ log = Log()
 log.action_counts = [0] * TOTAL_ACTIONS
 log.random_action_counts = [0] * TOTAL_ACTIONS
 
-from Catan_Env.catan_env import player0, player1, phase, random_testing, game, player0_log, player1_log
+from Catan_Env.catan_env import Catan_Env
 
 def logging(num_episode):
+    player0 = Catan_Env().players[0]
+    player1 = Catan_Env().players[1]
+
+    phase = Catan_Env().phase
+    random_testing = Catan_Env().random_testing
+
+    game = Catan_Env().game
+
+    player0_log = Catan_Env().player0_log
+    player1_log = Catan_Env().player1_log
+
     eps_threshold = EPS_END + (EPS_START - EPS_END)*math.exp(-1. * log.steps_done / EPS_DECAY)
     wandb.log({"eps_threshold": eps_threshold}, step=num_episode)
 
