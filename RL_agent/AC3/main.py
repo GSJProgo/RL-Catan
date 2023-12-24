@@ -16,7 +16,7 @@ import os
 import sys
 print(sys.path)
 
-sys.path.append('/home/victor/Maturarbeit/Catan/RL-Catan-main')
+sys.path.append('/home/victor/Maturarbeit/Catan/RL-Catan')
 
 from log import Log
 import torch.multiprocessing as mp
@@ -47,7 +47,7 @@ import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_3.0.0", config={}, group='finalrun3.0.0')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_3.1.2", config={}, group='finalrun3.1.2')
 
 torch.manual_seed(2)
 
@@ -111,7 +111,7 @@ class Worker(mp.Process):
             self.haslrupdated = 1
             
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_3_0_0.pth')
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_3_1_2.pth')
             
             print("episode", self.g_ep.value)
             self.env.new_game()
@@ -120,10 +120,10 @@ class Worker(mp.Process):
             buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
             ep_r = 0.
             print("this is theee number", self.number)
-            if self.opt.param_groups[0]['lr'] > 2e-6:
-                self.opt.param_groups[0]['lr'] = 1e-4 * 0.9999 ** (self.g_ep.value)
+            if self.opt.param_groups[0]['lr'] > 1e-5:
+                self.opt.param_groups[0]['lr'] = 1e-3 * 0.9996 ** (self.g_ep.value)
             else :
-                self.opt.param_groups[0]['lr'] = 4e-6 * 0.99998 ** (self.g_ep.value)
+                self.opt.param_groups[0]['lr'] = 1e-5 * 0.99998 ** (self.g_ep.value)
             print("new_lr", self.opt.param_groups[0]['lr'])
             while True:
                 if self.env.game.cur_player == 0:
@@ -182,6 +182,17 @@ class Worker(mp.Process):
                             value_dict[f'v_s_{self.name}'] = v_s_
                             step_dict[f'total_step{self.name}'] = total_step
                             break
+                    if total_step > 2000:
+                        self.env.game.is_finished = 0
+                        total_step = 0
+                        print(self.name, "has achieved total steps of", total_step)
+                        print(self.env.player0.victorypoints)
+                        print(self.env.player1.victorypoints)
+                        print("v_s_", v_s_)
+                        print("loss", loss)
+                        print("done")
+                        print("total reward =", ep_r)
+                        break
 
                     #if self.g_ep.value % 20 == 0:
                     #    if self.haslrupdated == 1:
@@ -213,7 +224,7 @@ class Worker(mp.Process):
                         average_a_loss.insert(0, a_loss)
                         if len(average_a_loss) > 50:
                             average_a_loss.pop()
-                        print("done")
+                        print("Game did not finish")
                         print(self.name, "has achieved total steps of", total_step)
                         print("total reward =", ep_r)
                         self.env.game.is_finished = 0
@@ -241,8 +252,8 @@ if __name__ == "__main__":
     #gnet.load_state_dict(torch.load("A3Cagent180_policy_net_0_1_1.pth"))
     
     gnet.share_memory()         # share the global parameters in multiprocessing
-    opt = SharedAdam(gnet.parameters(), lr=1e-4, betas=(0.92, 0.999))      # global optimizer
-    scheduler = ExponentialLR(opt, gamma=0.9999)
+    opt = SharedAdam(gnet.parameters(), lr=1e-3, betas=(0.92, 0.999))      # global optimizer
+    scheduler = ExponentialLR(opt, gamma=0.9995)
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
     logger = Log()
     # parallel training
