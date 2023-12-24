@@ -40,7 +40,7 @@ from Catan_Env.random_action import random_assignment
 
 from Catan_Env.catan_env import Catan_Env, create_env
 
-from Neural_Networks.AC3_Medium_Leaky_Optimized import ActorCritic
+from Neural_Networks.A3C_Medium_Leaky_Optimized import ActorCritic
 #plotting
 import wandb 
 import plotly.graph_objects as go
