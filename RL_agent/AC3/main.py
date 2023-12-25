@@ -47,9 +47,9 @@ import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_3.1.2", config={}, group='finalrun3.1.2')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_3.1.8", config={}, group='finalrun3.1.8')
 
-torch.manual_seed(2)
+torch.manual_seed(3)
 
 def select_action(action, env):
 
@@ -68,7 +68,7 @@ def select_action(action, env):
        
 
 UPDATE_GLOBAL_ITER = 5
-GAMMA = 0.98
+GAMMA = 0.96
 MAX_EP = 500000
 
 
@@ -91,6 +91,8 @@ class Worker(mp.Process):
         self.lnet = self.lnet.to(self.device)
         self.logger = logger
 
+        self.count = 0
+
         self.hasassigned = 0
         self.haslrupdated = 0
        
@@ -111,7 +113,7 @@ class Worker(mp.Process):
             self.haslrupdated = 1
             
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_3_1_2.pth')
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_3_1_8.pth')
             
             print("episode", self.g_ep.value)
             self.env.new_game()
@@ -121,11 +123,16 @@ class Worker(mp.Process):
             ep_r = 0.
             print("this is theee number", self.number)
             if self.opt.param_groups[0]['lr'] > 1e-5:
-                self.opt.param_groups[0]['lr'] = 1e-3 * 0.9996 ** (self.g_ep.value)
-            else :
+                self.opt.param_groups[0]['lr'] = 2e-4 * 0.9998 ** (self.g_ep.value)
+            elif self.opt.param_groups[0]['lr'] > 1e-6:
                 self.opt.param_groups[0]['lr'] = 1e-5 * 0.99998 ** (self.g_ep.value)
+            else:
+                self.opt.param_groups[0]['lr'] = 1e-6 * 0.999998 ** (self.g_ep.value)
+                
+
             print("new_lr", self.opt.param_groups[0]['lr'])
             while True:
+                self.count += 1
                 if self.env.game.cur_player == 0:
                     self.env.phase.statechange = 0
                     a, meanlogits = self.lnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
@@ -170,6 +177,7 @@ class Worker(mp.Process):
                             if len(average_a_loss) > 50:
                                 average_a_loss.pop()
                             self.env.game.is_finished = 0
+                            total_step = 0
                             print(self.name, "has achieved total steps of", total_step)
                             print(self.env.player0.victorypoints)
                             print(self.env.player1.victorypoints)
@@ -181,9 +189,11 @@ class Worker(mp.Process):
                             record(self.g_ep, self.g_ep_r, ep_r, self.res_queue, self.name)
                             value_dict[f'v_s_{self.name}'] = v_s_
                             step_dict[f'total_step{self.name}'] = total_step
+                            self.count = 0
                             break
-                    if total_step > 2000:
+                    if self.count > 2000:
                         self.env.game.is_finished = 0
+                        self.count = 0
                         total_step = 0
                         print(self.name, "has achieved total steps of", total_step)
                         print(self.env.player0.victorypoints)
@@ -221,6 +231,7 @@ class Worker(mp.Process):
                         a, meanlogits = self.oppnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
                         select_action(a, self.env)
                     if self.env.game.is_finished == 1:  # done and print information
+                        self.count = 0
                         average_a_loss.insert(0, a_loss)
                         if len(average_a_loss) > 50:
                             average_a_loss.pop()
@@ -252,8 +263,8 @@ if __name__ == "__main__":
     #gnet.load_state_dict(torch.load("A3Cagent180_policy_net_0_1_1.pth"))
     
     gnet.share_memory()         # share the global parameters in multiprocessing
-    opt = SharedAdam(gnet.parameters(), lr=1e-3, betas=(0.92, 0.999))      # global optimizer
-    scheduler = ExponentialLR(opt, gamma=0.9995)
+    opt = SharedAdam(gnet.parameters(), lr=1e-4, betas=(0.92, 0.999))      # global optimizer
+    scheduler = ExponentialLR(opt, gamma=0.9998)
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
     logger = Log()
     # parallel training
