@@ -47,7 +47,7 @@ import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_3.1.8", config={}, group='finalrun3.1.8')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_4.1.0", config={}, group='finalrun4.1.0')
 
 torch.manual_seed(3)
 
@@ -68,12 +68,8 @@ def select_action(action, env):
        
 
 UPDATE_GLOBAL_ITER = 5
-GAMMA = 0.96
+GAMMA = 0.98
 MAX_EP = 500000
-
-
-
-
 
 class Worker(mp.Process):
     def __init__(self, gnet, opt, global_ep, global_ep_r, res_queue, name, device, logger, global_device):
@@ -91,6 +87,14 @@ class Worker(mp.Process):
         self.lnet = self.lnet.to(self.device)
         self.logger = logger
 
+        self.average_loss = []
+        self.average_v_s_ = []
+        self.average_c_loss = []
+        self.average_a_loss = []
+        self.average_entropy = []
+        self.average_l2 = []
+        self.average_v_s_end = []
+
         self.count = 0
 
         self.hasassigned = 0
@@ -103,17 +107,17 @@ class Worker(mp.Process):
         step_dict = {}
         value_dict = {}
         total_step = 1
-        average_loss = []
-        average_v_s_ = []
-        average_c_loss = []
-        average_a_loss = []
-        average_entropy = []
-        average_l2 = []
+        self.average_loss = []
+        self.average_v_s_ = []
+        self.average_c_loss = []
+        self.average_a_loss = []
+        self.average_entropy = []
+        self.average_l2 = []
         while self.g_ep.value < MAX_EP:
             self.haslrupdated = 1
             
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_3_1_8.pth')
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_4_1_0.pth')
             
             print("episode", self.g_ep.value)
             self.env.new_game()
@@ -122,12 +126,12 @@ class Worker(mp.Process):
             buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
             ep_r = 0.
             print("this is theee number", self.number)
-            if self.opt.param_groups[0]['lr'] > 1e-5:
-                self.opt.param_groups[0]['lr'] = 2e-4 * 0.9998 ** (self.g_ep.value)
-            elif self.opt.param_groups[0]['lr'] > 1e-6:
-                self.opt.param_groups[0]['lr'] = 1e-5 * 0.99998 ** (self.g_ep.value)
+            if self.opt.param_groups[0]['lr'] > 1e-4:
+                self.opt.param_groups[0]['lr'] = 1e-3 * 0.9998 ** (self.g_ep.value)
+            elif self.opt.param_groups[0]['lr'] > 1e-5:
+                self.opt.param_groups[0]['lr'] = 1e-4 * 0.99998 ** (self.g_ep.value)
             else:
-                self.opt.param_groups[0]['lr'] = 1e-6 * 0.999998 ** (self.g_ep.value)
+                self.opt.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
                 
 
             print("new_lr", self.opt.param_groups[0]['lr'])
@@ -155,29 +159,37 @@ class Worker(mp.Process):
                         v_s_, loss, c_loss, a_loss, entropy, l2 = push_and_pull(self.opt, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step)
                         buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
 
-                        average_loss.insert(0, loss)
-                        if len(average_loss) > 2000:
-                            average_loss.pop()
-                        average_v_s_.insert(0, v_s_)
-                        if len(average_v_s_) > 2000:
-                            average_v_s_.pop()
-                        average_c_loss.insert(0, c_loss)
-                        if len(average_c_loss) > 2000:
-                            average_c_loss.pop()
+                        self.average_loss.insert(0, loss)
+                        if len(self.average_loss) > 2000:
+                            self.average_loss.pop()
+
+                        v_s_ = v_s_.cpu().mean().item()
+                        self.average_v_s_.insert(0, v_s_)
+                        if len(self.average_v_s_) > 2000:
+                            self.average_v_s_.pop()
+
+                        self.average_c_loss.insert(0, c_loss)
+                        if len(self.average_c_loss) > 2000:
+                            self.average_c_loss.pop()
                        
-                        average_entropy.insert(0, entropy)
-                        if len(average_entropy) > 2000:
-                            average_entropy.pop()
-                        average_l2.insert(0, l2)
-                        if len(average_l2) > 2000:
-                            average_l2.pop()
+                        self.average_entropy.insert(0, entropy)
+                        if len(self.average_entropy) > 2000:
+                            self.average_entropy.pop()
+
+                        self.average_l2.insert(0, l2)
+                        if len(self.average_l2) > 2000:
+                            self.average_l2.pop()
+
+                        self.average_a_loss.insert(0, a_loss)
+                        if len(self.average_a_loss) > 2000:
+                            self.average_a_loss.pop()
 
                         if self.env.game.is_finished == 1:  # done and print information
-                            average_a_loss.insert(0, a_loss/total_step)
-                            if len(average_a_loss) > 50:
-                                average_a_loss.pop()
+                            print("loss", loss)
+                            print("c_loss", c_loss)
+                            print("a_loss", a_loss)
+                            print("entropy", entropy)
                             self.env.game.is_finished = 0
-                            total_step = 0
                             print(self.name, "has achieved total steps of", total_step)
                             print(self.env.player0.victorypoints)
                             print(self.env.player1.victorypoints)
@@ -185,16 +197,17 @@ class Worker(mp.Process):
                             print("loss", loss)
                             print("done")
                             print("total reward =", ep_r)
-                            logging(self.env, self.logger, ep_r, v_s_, loss, total_step, average_loss, average_v_s_, average_c_loss, average_a_loss, average_entropy, average_l2)
+                            logging(self.env, self.logger, ep_r, v_s_, loss, total_step, self.average_loss, self.average_v_s_, self.average_c_loss, self.average_a_loss, self.average_entropy, self.average_l2)
                             record(self.g_ep, self.g_ep_r, ep_r, self.res_queue, self.name)
                             value_dict[f'v_s_{self.name}'] = v_s_
                             step_dict[f'total_step{self.name}'] = total_step
                             self.count = 0
+                            total_step = 0
                             break
-                    if self.count > 2000:
-                        self.env.game.is_finished = 0
-                        self.count = 0
-                        total_step = 0
+
+                    if self.count > 10000:
+                        self.env.game.is_finished = 1
+                        print("Game did not finish")
                         print(self.name, "has achieved total steps of", total_step)
                         print(self.env.player0.victorypoints)
                         print(self.env.player1.victorypoints)
@@ -202,8 +215,9 @@ class Worker(mp.Process):
                         print("loss", loss)
                         print("done")
                         print("total reward =", ep_r)
+                        self.count = 0
+                        total_step = 0
                         break
-
                     #if self.g_ep.value % 20 == 0:
                     #    if self.haslrupdated == 1:
                     #        self.opt.param_groups[0]['lr'] = self.opt.param_groups[0]['lr'] * 0.9
@@ -215,7 +229,9 @@ class Worker(mp.Process):
                     total_step += 1
                 else: 
                     if self.g_ep.value < 36000 + self.number*6000:
-                        random_assignment(self.env)
+                        boardstate = state_changer(self.env)[0].to(self.device)
+                        vectorstate = state_changer(self.env)[1].to(self.device)
+                        a = random_assignment(self.env)
                     else:
                         if self.g_ep.value % 36000 == self.number*6000:
                             if self.hasassigned == 0:
@@ -231,16 +247,29 @@ class Worker(mp.Process):
                         a, meanlogits = self.oppnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
                         select_action(a, self.env)
                     if self.env.game.is_finished == 1:  # done and print information
-                        self.count = 0
-                        average_a_loss.insert(0, a_loss)
-                        if len(average_a_loss) > 50:
-                            average_a_loss.pop()
-                        print("Game did not finish")
+                        boardstate_,vectorstate_, r, done =  state_changer(self.env)[0], state_changer(self.env)[1], self.env.phase.reward, self.env.game.is_finished
+                        print(self.env.phase.reward)
+                        self.env.phase.reward = 0
+                        buffer_a = []
+                        buffer_boardstate = []
+                        buffer_vectorstate = []
+                        buffer_r = []
+                        buffer_a.append(a)
+                        buffer_boardstate.append(boardstate)
+                        buffer_vectorstate.append(vectorstate)
+                        buffer_r.append(r)
+                        ep_r += r
+                        v_s_, loss, c_loss, a_loss, entropy, l2 = push_and_pull(self.opt, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step)
+                        buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
                         print(self.name, "has achieved total steps of", total_step)
+                        print("v_s_", v_s_)
+                        print("loss", loss)
+                        print("done")
                         print("total reward =", ep_r)
                         self.env.game.is_finished = 0
-                        logging(self.env, self.logger, ep_r, 0, 0, total_step, average_loss, average_v_s_, average_c_loss, average_a_loss, average_entropy, average_l2)
+                        logging(self.env, self.logger, ep_r, 0, 0, total_step, self.average_loss, self.average_v_s_, self.average_c_loss, self.average_a_loss, self.average_entropy, self.average_l2)
                         record(self.g_ep, self.g_ep_r, ep_r, self.res_queue, self.name)
+                        self.count = 0
                         total_step = 0
                         break
                 
@@ -256,14 +285,14 @@ class Worker(mp.Process):
 if __name__ == "__main__":
     torch.set_printoptions(precision=7)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    mp.set_start_method('spawn')
+    mp.set_start_method('spawn') #not necessary
     gnet = ActorCritic().to(device) # global network
     
     # Load the weights
     #gnet.load_state_dict(torch.load("A3Cagent180_policy_net_0_1_1.pth"))
     
     gnet.share_memory()         # share the global parameters in multiprocessing
-    opt = SharedAdam(gnet.parameters(), lr=1e-4, betas=(0.92, 0.999))      # global optimizer
+    opt = SharedAdam(gnet.parameters(), lr=1e-3, betas=(0.92, 0.999))      # global optimizer
     scheduler = ExponentialLR(opt, gamma=0.9998)
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
     logger = Log()
@@ -370,12 +399,12 @@ def logging(env, logger, global_ep_r, v_s_, loss, total_step, average_loss, aver
 
     run.log({"average_loss_end": sum(logger.average_loss_end)/5}, step=global_ep)
 
-    run.log({"average_v_s_": sum(average_v_s_)/2000}, step=global_ep)
-    run.log({"average_loss": sum(average_loss)/2000}, step=global_ep)
-    run.log({"average_c_loss": sum(average_c_loss)/2000}, step=global_ep)
-    run.log({"average_a_loss": sum(average_a_loss)/50}, step=global_ep)
-    run.log({"average_entropy": sum(average_entropy)/2000}, step=global_ep)
-    run.log({"average_l2": sum(average_l2)/2000}, step=global_ep)
+    run.log({"average_v_s_": sum(average_v_s_)/10000}, step=global_ep)
+    run.log({"average_loss": sum(average_loss)/10000}, step=global_ep)
+    run.log({"average_c_loss": sum(average_c_loss)/10000}, step=global_ep)
+    run.log({"average_a_loss": sum(average_a_loss)/10000}, step=global_ep)
+    run.log({"average_entropy": sum(average_entropy)/10000}, step=global_ep)
+    run.log({"average_l2": sum(average_l2)/10000}, step=global_ep)
 
     run.log({"Function Call Counts": wandb.Plotly(fig)}, step=global_ep)
     

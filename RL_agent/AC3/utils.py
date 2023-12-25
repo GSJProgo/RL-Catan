@@ -28,15 +28,19 @@ def push_and_pull(opt, lnet, gnet, done, boardstate_, vectorstate_, buffer_board
 
 
     buffer_v_target = []
-    for r in br[::-1]:    # reverse buffer r
-        v_s_ = r + gamma * v_s_
-        buffer_v_target.append(v_s_)
-    buffer_v_target.reverse()
+
+    if len(br) == 1:
+        buffer_v_target.append(br[0] + gamma * v_s_)
+    else:
+        for r in br[::-1]:    # reverse buffer r
+            v_s_ = r + gamma * v_s_
+            buffer_v_target.append(v_s_)
+        buffer_v_target.reverse()
 
     buffer_boardstate_cpu = [tensor.cpu() for tensor in buffer_boardstate]
     buffer_vectorstate_cpu = [tensor.cpu() for tensor in buffer_vectorstate]
 
-    loss, c_loss, a_loss, entropy, l2 = lnet.loss_func(
+    values, loss, c_loss, a_loss, entropy, l2 = lnet.loss_func(
         v_wrap(np.vstack(buffer_boardstate_cpu)), 
         v_wrap(np.vstack(buffer_vectorstate_cpu)),
         v_wrap(np.array(ba, dtype=np.int64)) if ba[0].dtype == np.int64 else v_wrap(np.vstack(ba)),
@@ -53,8 +57,7 @@ def push_and_pull(opt, lnet, gnet, done, boardstate_, vectorstate_, buffer_board
 
     # pull global parameters
     lnet.load_state_dict(gnet.state_dict())
-    return v_s_, loss, c_loss, a_loss, entropy, l2
-
+    return values, loss, c_loss, a_loss, entropy, l2
 
 def record(global_ep, global_ep_r, ep_r, res_queue, name):
     

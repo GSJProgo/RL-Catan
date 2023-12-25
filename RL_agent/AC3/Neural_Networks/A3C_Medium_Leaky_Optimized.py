@@ -115,8 +115,8 @@ class ActorCritic(nn.Module):
         #    print("total_loss: ", (c_loss * 10**3 + a_loss + entropy * 5 * 10**-3 + l2_activity_loss * 5 * 10**-6).mean())
 
 
-        total_loss = (c_loss * 10**3 + a_loss * 10 ** 2  + entropy * 5 * 10 ** -2 + l2_activity_loss * 4 * 10 ** -5).mean()
-        return total_loss, c_loss.mean() * 10 ** 3, a_loss.mean() * 10 ** 2, entropy.mean() * 5 * 10 ** -2, l2_activity_loss.mean() * 4 * 10 ** -5
+        total_loss = (c_loss * 10**3 + a_loss * 40 + entropy * 5 * 10 ** -2 + l2_activity_loss * 2 * 10 ** -5).mean()
+        return values, total_loss, c_loss.mean() * 10 ** 3, a_loss.mean() * 40, entropy.mean() * 5 * 10 ** -2, l2_activity_loss.mean() * 2 * 10 ** -5
 
     def choose_action(self,boardstate,vectorstate, env, total_step):
         torch.set_num_threads(1)

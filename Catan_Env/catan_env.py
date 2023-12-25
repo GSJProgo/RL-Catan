@@ -1149,7 +1149,13 @@ class Catan_Env:
                 
                 phase.statechange = 1
         
-        if player.discard_resources_turn == math.ceil(player.total_resources/2):
+        if player.discard_resources_turn > math.ceil(player.total_resources/2):
+            print("ERROR: Discard resources turn is greater than half of total resources")
+            print("Discard resources turn: ", player.discard_resources_turn)
+            print("Total resources: ", player.total_resources)
+        if player.discard_resources_lumber == 0 and player.discard_resources_wool == 0 and player.discard_resources_grain == 0 and player.discard_resources_brick == 0 and player.discard_resources_ore == 0:
+            print("ERROR: All discard resources are 0")
+        if player.discard_resources_turn >= math.ceil(player.total_resources/2) or (player.discard_resources_lumber == 0 and player.discard_resources_wool == 0 and player.discard_resources_grain == 0 and player.discard_resources_brick == 0 and player.discard_resources_ore == 0):
             player.discard_resources_lumber = 0
             player.discard_resources_wool = 0
             player.discard_resources_grain = 0
@@ -1159,7 +1165,6 @@ class Catan_Env:
             player.discard_resources_started = 0
             random_testing.successful_discard_resources += 1
             self.steal_card()
-
 
     def longest_road(self,i, j, prev_move):
         
@@ -1949,10 +1954,6 @@ class Catan_Env:
                 for j in range(0,21):
                     if board.rober_position[i][j] != 1 and board.TILES_POSSIBLE[i][j] == 1:
                         self.legal_actions[0][i*21+j] = 1
-                    
-            
-    
-                
     
         if game.placement_phase_pending == 1:
             for i in range(0,11):
@@ -2103,6 +2104,7 @@ class Catan_Env:
             self.legal_actions[0][4*21*11 + 33] = 1
             self.legal_actions[0][4*21*11 + 34] = 1
             self.legal_actions[0][4*21*11 + 35] = 1
+
         if player.monopoly_move_pending == 1:
             self.legal_actions[0][4*21*11 + 36] = 1
             self.legal_actions[0][4*21*11 + 37] = 1
