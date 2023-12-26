@@ -47,9 +47,9 @@ import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_4.2.0", config={}, group='finalrun4.2.0')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_4.4.0", config={}, group='finalrun4.4.0')
 
-torch.manual_seed(2)
+torch.manual_seed(3)
 
 def select_action(action, env):
 
@@ -113,17 +113,17 @@ class Worker(mp.Process):
         self.average_l2 = []
         while self.g_ep.value < MAX_EP:  
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_4_2_0.pth')
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_4_4_0.pth')
             print("episode", self.g_ep.value)
             self.env.new_game()
             boardstate = state_changer(self.env)[0].to(self.device)
             vectorstate = state_changer(self.env)[1].to(self.device)
             buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
             ep_r = 0.
-            if self.opt.param_groups[0]['lr'] > 1e-4:
+            if self.opt.param_groups[0]['lr'] > 5e-5:
                 self.opt.param_groups[0]['lr'] = 4e-4 * 0.9998 ** (self.g_ep.value)
             elif self.opt.param_groups[0]['lr'] > 1e-5:
-                self.opt.param_groups[0]['lr'] = 1e-4 * 0.99998 ** (self.g_ep.value)
+                self.opt.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
             else:
                 self.opt.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
 
@@ -285,8 +285,8 @@ if __name__ == "__main__":
     #gnet.load_state_dict(torch.load("A3Cagent180_policy_net_0_1_1.pth"))
     
     gnet.share_memory()         # share the global parameters in multiprocessing
-    opt = SharedAdam(gnet.parameters(), lr=1e-3, betas=(0.92, 0.999))      # global optimizer
-    scheduler = ExponentialLR(opt, gamma=0.9998)
+    opt = SharedAdam(gnet.parameters(), lr=4e-4, betas=(0.92, 0.999))      # global optimizer
+    scheduler = ExponentialLR(opt, gamma=0.99998)
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
     logger = Log()
     # parallel training

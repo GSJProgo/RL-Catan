@@ -15,8 +15,8 @@ def v_wrap(np_array, dtype=np.float32):
 
 def init_weights(m):
     if type(m) == nn.Linear or type(m) == nn.Conv2d:
-        nn.init.normal_(m.weight, mean=0., std=1)
-        nn.init.normal_(m.weight, mean=0., std=1)
+        nn.init.normal_(m.weight, mean=0., std=0.01)
+        nn.init.uniform_(m.bias, -0.1, 0.1)
 
 
 def push_and_pull(opt, lnet, gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, ba, br, gamma, device, global_device, total_step):
