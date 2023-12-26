@@ -47,9 +47,9 @@ import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_4.1.0", config={}, group='finalrun4.1.0')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_4.2.0", config={}, group='finalrun4.2.0')
 
-torch.manual_seed(3)
+torch.manual_seed(2)
 
 def select_action(action, env):
 
@@ -78,13 +78,11 @@ class Worker(mp.Process):
         self.name = 'w%02i' % name
         self.g_ep, self.g_ep_r, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = gnet, opt
-        self.lnet = ActorCritic().to(device)           # local network
-        self.oppnet = ActorCritic().to(device)
         self.env = Catan_Env()
-        # Set the CUDA device for each worker
         self.device = torch.device("cuda:{}".format(device))
         self.global_device = torch.device("cuda:{}".format(global_device))  
-        self.lnet = self.lnet.to(self.device)
+        self.lnet = ActorCritic().to(self.device)       
+        self.oppnet = ActorCritic().to(self.device)
         self.logger = logger
 
         self.average_loss = []
@@ -113,26 +111,21 @@ class Worker(mp.Process):
         self.average_a_loss = []
         self.average_entropy = []
         self.average_l2 = []
-        while self.g_ep.value < MAX_EP:
-            self.haslrupdated = 1
-            
+        while self.g_ep.value < MAX_EP:  
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_4_1_0.pth')
-            
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_4_2_0.pth')
             print("episode", self.g_ep.value)
             self.env.new_game()
             boardstate = state_changer(self.env)[0].to(self.device)
             vectorstate = state_changer(self.env)[1].to(self.device)
             buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
             ep_r = 0.
-            print("this is theee number", self.number)
             if self.opt.param_groups[0]['lr'] > 1e-4:
-                self.opt.param_groups[0]['lr'] = 1e-3 * 0.9998 ** (self.g_ep.value)
+                self.opt.param_groups[0]['lr'] = 4e-4 * 0.9998 ** (self.g_ep.value)
             elif self.opt.param_groups[0]['lr'] > 1e-5:
                 self.opt.param_groups[0]['lr'] = 1e-4 * 0.99998 ** (self.g_ep.value)
             else:
                 self.opt.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
-                
 
             print("new_lr", self.opt.param_groups[0]['lr'])
             while True:
@@ -399,12 +392,12 @@ def logging(env, logger, global_ep_r, v_s_, loss, total_step, average_loss, aver
 
     run.log({"average_loss_end": sum(logger.average_loss_end)/5}, step=global_ep)
 
-    run.log({"average_v_s_": sum(average_v_s_)/10000}, step=global_ep)
-    run.log({"average_loss": sum(average_loss)/10000}, step=global_ep)
-    run.log({"average_c_loss": sum(average_c_loss)/10000}, step=global_ep)
-    run.log({"average_a_loss": sum(average_a_loss)/10000}, step=global_ep)
-    run.log({"average_entropy": sum(average_entropy)/10000}, step=global_ep)
-    run.log({"average_l2": sum(average_l2)/10000}, step=global_ep)
+    run.log({"average_v_s_": sum(average_v_s_)/2000}, step=global_ep)
+    run.log({"average_loss": sum(average_loss)/2000}, step=global_ep)
+    run.log({"average_c_loss": sum(average_c_loss)/2000}, step=global_ep)
+    run.log({"average_a_loss": sum(average_a_loss)/2000}, step=global_ep)
+    run.log({"average_entropy": sum(average_entropy)/2000}, step=global_ep)
+    run.log({"average_l2": sum(average_l2)/2000}, step=global_ep)
 
     run.log({"Function Call Counts": wandb.Plotly(fig)}, step=global_ep)
     
