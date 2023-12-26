@@ -1,4 +1,4 @@
-# Reinforcement learning DQN and AC3 implementation for Catan
+# Reinforcement learning DQN and A3C implementation for Catan
 
   
 
