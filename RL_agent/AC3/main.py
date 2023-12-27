@@ -40,16 +40,16 @@ from Catan_Env.random_action import random_assignment
 
 from Catan_Env.catan_env import Catan_Env, create_env
 
-from Neural_Networks.A3C_Medium_Leaky_Optimized import ActorCritic
+from Neural_Networks.A3C_Medium_Seperated import ActorCritic
 #plotting
 import wandb 
 import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_4.4.0", config={}, group='finalrun4.4.0')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_5.2.2", config={}, group='finalrun5.2.2')
 
-torch.manual_seed(3)
+torch.manual_seed(2)
 
 def select_action(action, env):
 
@@ -78,6 +78,11 @@ class Worker(mp.Process):
         self.name = 'w%02i' % name
         self.g_ep, self.g_ep_r, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = gnet, opt
+        self.actor_optimizer = torch.optim.Adam(self.gnet.actor_parameters, lr=1e-4, betas=(0.92, 0.999)) 
+        self.critic_optimizer = torch.optim.Adam(self.gnet.critic_parameters, lr=1e-4, betas=(0.92, 0.999)) 
+        self.critic_optimizer = opt #need to think if this works like this
+
+        
         self.env = Catan_Env()
         self.device = torch.device("cuda:{}".format(device))
         self.global_device = torch.device("cuda:{}".format(global_device))  
@@ -113,7 +118,7 @@ class Worker(mp.Process):
         self.average_l2 = []
         while self.g_ep.value < MAX_EP:  
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_4_4_0.pth')
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_5_2_2.pth')
             print("episode", self.g_ep.value)
             self.env.new_game()
             boardstate = state_changer(self.env)[0].to(self.device)
@@ -121,11 +126,18 @@ class Worker(mp.Process):
             buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
             ep_r = 0.
             if self.opt.param_groups[0]['lr'] > 5e-5:
-                self.opt.param_groups[0]['lr'] = 4e-4 * 0.9998 ** (self.g_ep.value)
+                self.opt.param_groups[0]['lr'] = 1e-4 * 0.9998 ** (self.g_ep.value)
+                self.actor_optimizer.param_groups[0]['lr'] = 1e-4 * 0.9998 ** (self.g_ep.value)
+                self.critic_optimizer.param_groups[0]['lr'] = 1e-4 * 0.9998 ** (self.g_ep.value)
             elif self.opt.param_groups[0]['lr'] > 1e-5:
                 self.opt.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
+                self.actor_optimizer.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
+                self.critic_optimizer.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
             else:
                 self.opt.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
+                self.actor_optimizer.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
+                self.critic_optimizer.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
+
 
             print("new_lr", self.opt.param_groups[0]['lr'])
             while True:
@@ -149,7 +161,9 @@ class Worker(mp.Process):
                     
                     if total_step % UPDATE_GLOBAL_ITER == 0 or done:  # update global and assign to local net
                         # sync
-                        v_s_, loss, c_loss, a_loss, entropy, l2 = push_and_pull(self.opt, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step)
+                        v_s_, loss, c_loss, a_loss, entropy, l2 = push_and_pull(self.actor_optimizer, self.critic_optimizer , self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step)
+                        if done == 1:
+                            print("buffer_r",buffer_r)  
                         buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
 
                         self.average_loss.insert(0, loss)
@@ -178,6 +192,7 @@ class Worker(mp.Process):
                             self.average_a_loss.pop()
 
                         if self.env.game.is_finished == 1:  # done and print information
+                            print ("buffer_r",buffer_r)
                             print("loss", loss)
                             print("c_loss", c_loss)
                             print("a_loss", a_loss)
@@ -252,7 +267,12 @@ class Worker(mp.Process):
                         buffer_vectorstate.append(vectorstate)
                         buffer_r.append(r)
                         ep_r += r
-                        v_s_, loss, c_loss, a_loss, entropy, l2 = push_and_pull(self.opt, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step)
+                        v_s_, loss, c_loss, a_loss, entropy, l2 = push_and_pull(self.actor_optimizer, self.critic_optimizer, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step)
+                        print ("buffer_r",buffer_r)
+                        print("loss", loss)
+                        print("c_loss", c_loss)
+                        print("a_loss", a_loss)
+                        print("entropy", entropy)
                         buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
                         print(self.name, "has achieved total steps of", total_step)
                         print("v_s_", v_s_)
@@ -285,7 +305,7 @@ if __name__ == "__main__":
     #gnet.load_state_dict(torch.load("A3Cagent180_policy_net_0_1_1.pth"))
     
     gnet.share_memory()         # share the global parameters in multiprocessing
-    opt = SharedAdam(gnet.parameters(), lr=4e-4, betas=(0.92, 0.999))      # global optimizer
+    opt = SharedAdam(gnet.parameters(), lr=1e-4, betas=(0.92, 0.999))      # global optimizer
     scheduler = ExponentialLR(opt, gamma=0.99998)
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
     logger = Log()

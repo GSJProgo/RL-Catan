@@ -15,11 +15,11 @@ def v_wrap(np_array, dtype=np.float32):
 
 def init_weights(m):
     if type(m) == nn.Linear or type(m) == nn.Conv2d:
-        nn.init.normal_(m.weight, mean=0., std=0.01)
+        nn.init.normal_(m.weight, mean=0., std=0.04)
         nn.init.uniform_(m.bias, -0.1, 0.1)
 
 
-def push_and_pull(opt, lnet, gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, ba, br, gamma, device, global_device, total_step):
+def push_and_pull(actoropt,criticopt, lnet, gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, ba, br, gamma, device, global_device, total_step):
     torch.set_num_threads(1)
     if done:
         v_s_ = 0.               # terminal
@@ -47,13 +47,22 @@ def push_and_pull(opt, lnet, gnet, done, boardstate_, vectorstate_, buffer_board
         v_wrap(np.array(buffer_v_target)[:, None]), device, total_step)
 
     # calculate local gradients and push local parameters to global
-    opt.zero_grad()
-    loss.backward()
-    
-    for lp, gp in zip(lnet.parameters(), gnet.parameters()):
+    actorloss = a_loss.mean() + entropy.mean() + l2.mean()
+    actoropt.zero_grad()
+    actorloss.backward()
+
+    for lp, gp in zip(lnet.actor_parameters, gnet.actor_parameters):
         grad = lp.grad.to(global_device)
         gp._grad = grad
-    opt.step()
+    actoropt.step() 
+
+    criticopt.zero_grad()
+    c_loss.mean().backward()
+
+    for lp, gp in zip(lnet.critic_parameters, gnet.critic_parameters):
+        grad = lp.grad.to(global_device)
+        gp._grad = grad
+    criticopt.step()  
 
     # pull global parameters
     lnet.load_state_dict(gnet.state_dict())

@@ -5,89 +5,82 @@ from torch.distributions import Categorical
 from utils import init_weights
 
 class ActorCritic(nn.Module):
-    def __init__(self, gamma = 0.99, num_resBlocks = 8):
+    def __init__(self, gamma = 0.99, num_resBlocks = 4):
         super().__init__()
 
         self.gamma = gamma
 
         self.denselayer = nn.Sequential(
-            nn.Linear(35,128),
+            nn.Linear(35,64),
             nn.LeakyReLU(),
-            nn.Linear(128,128),
-            nn.LeakyReLU(),
-            nn.Linear(128,64), 
+            nn.Linear(64,64), 
         )
         self.denseFinal = nn.Sequential(
-            nn.Linear(128,128),
-            nn.LeakyReLU(),
-            nn.Linear(128,64),
-            nn.LeakyReLU(),
-            nn.Linear(64,41)
+            nn.Linear(64,41),
         )
 
-        self.ResTransfrom = nn.Sequential(
-            nn.Conv2d(23,64,kernel_size=(3,3), padding=1),
-            nn.BatchNorm2d(64),
+        self.CNN = nn.Sequential(
+            nn.Conv2d(23,4,kernel_size=(3,3), padding=1),
+            nn.BatchNorm2d(4),
             nn.LeakyReLU(),
+            nn.Flatten(),
         )
-        
 
         self.ConvScalar = nn.Sequential(
             nn.Conv2d(23,5,kernel_size=(3,5),padding=0,stride=(2,2)),
             nn.BatchNorm2d(5),
             nn.LeakyReLU(),
             nn.Flatten(),
-            nn.Linear(225, 128),
-            nn.LeakyReLU(),
-            nn.Linear(128, 64),
-        )
-
-        self.ConvConv = nn.ModuleList(
-            [ResBlock() for i in range(num_resBlocks)]
-        )
-
-        self.ConvCombine = nn.Sequential(
-            nn.Conv2d(64,4,kernel_size = 1, padding=0), 
-            nn.BatchNorm2d(4),
-            nn.LeakyReLU(),
-            nn.Flatten(),
-            nn.Linear(4*11*21, 512),
-            nn.LeakyReLU(),
-            nn.Linear(512, 512),             
+            nn.Linear(225, 64),
         )
 
         self.ConvCombineFinal = nn.Sequential(
-            nn.Linear(768,1024),
-            nn.LeakyReLU(),
-            nn.Linear(1024,1024),
-            nn.LeakyReLU(),
-            nn.Linear(1024,11*21*4),
+            nn.Linear(11*21*4,11*21*4),
         )
 
         self.DenseConv = nn.Sequential(
-            nn.Linear(35,256),
+            nn.Linear(35,64),
             nn.LeakyReLU(),
-            nn.Linear(256,256),
+            nn.Linear(64,128),
             nn.LeakyReLU(),
-            nn.Linear(256,256),
+            nn.Linear(128,21*11*4),
         )
 
+        self.DenseValue = nn.Sequential(    
+            nn.Linear(35, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64,64),
+            nn.LeakyReLU(),
+        )
+
+
+        
         self.CombineValue = nn.Sequential(
-            nn.Linear(896, 512),
+            nn.Linear(64,16),
             nn.LeakyReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(16,1)
+        )
+        self.ConvValue = nn.Sequential(
+            nn.Conv2d(23,4,kernel_size=(3,3), padding=1),
+            nn.BatchNorm2d(4),
             nn.LeakyReLU(),
-            nn.Linear(256, 128),
+            nn.Flatten(),
+            nn.Linear(11*21*4, 64),
             nn.LeakyReLU(),
-            nn.Linear(128, 64),
-            nn.LeakyReLU(),
-            nn.Linear(64,1)
         )
 
         self.distribution = torch.distributions.Categorical
         self.apply(init_weights)
     
-    
+    @property
+    def actor_parameters(self):
+        # Returns parameters for the actor network
+        return list(self.denseFinal.parameters()) + list(self.ConvCombineFinal.parameters()) + list(self.DenseConv.parameters()) + list(self.denselayer.parameters()) + list(self.ConvScalar.parameters()) + list(self.CNN.parameters() )
+
+    @property
+    def critic_parameters(self):
+        # Returns parameters for the critic network
+        return list(self.DenseValue.parameters()) + list(self.ConvValue.parameters()) + list(self.CombineValue.parameters())
     
     def loss_func(self, boardstate, vectorstate, a, v_t, device, total_step):
         torch.set_num_threads(1)
@@ -115,8 +108,8 @@ class ActorCritic(nn.Module):
         #    print("total_loss: ", (c_loss * 10**3 + a_loss + entropy * 5 * 10**-3 + l2_activity_loss * 5 * 10**-6).mean())
 
 
-        total_loss = (c_loss * 10**3 + a_loss * 4 + entropy * 2 * 10 ** -3 + l2_activity_loss * 5 * 10 ** -4).mean()
-        return values, total_loss, c_loss.mean() * 10 ** 3, a_loss.mean() * 4, entropy.mean() * 2 * 10 ** -3, l2_activity_loss.mean() * 2 * 10 ** -4
+        total_loss = (c_loss * 10**3 + a_loss * 10  ** 2 + entropy * 5 * 10 ** -3 + l2_activity_loss * 5 * 10 ** -3).mean()
+        return values, total_loss, c_loss.mean() * 10 ** 3, a_loss.mean() * 10 ** 2, entropy.mean() * 5 * 10 ** -3, l2_activity_loss.mean() * 5 * 10 ** -3
 
     def choose_action(self,boardstate,vectorstate, env, total_step):
         torch.set_num_threads(1)
@@ -153,19 +146,19 @@ class ActorCritic(nn.Module):
         x1 = self.denselayer(vectorstate2)
         x2 = self.ConvScalar(boardstate2)
         y1 = self.DenseConv(vectorstate2)
-        y2 = self.ResTransfrom(boardstate2)
-        for resblock in self.ConvConv:
-            y2 = resblock(y2)
-        y2 = self.ConvCombine(y2)
+        y2 = self.CNN(boardstate2)
+        
         #is this the right dimension in which I concentate?
-        y = torch.cat((y1,y2),1)
-        x = torch.cat((x1,x2),1)
+        y = y1 + y2
+        x = x1 + x2
         vectoractions = self.denseFinal(x)
         boardactions = self.ConvCombineFinal(y)
         state = torch.cat((boardactions,vectoractions),1)
 
-        z = torch.cat((x,y),1)
-        value = self.CombineValue(z)
+        value1 = self.DenseValue(vectorstate2)
+        value2 = self.ConvValue(boardstate2)
+        value = value1 + value2
+        value = self.CombineValue(value)
         return state, value
         
     

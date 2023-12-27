@@ -5,7 +5,7 @@ from torch.distributions import Categorical
 from utils import init_weights
 
 class ActorCritic(nn.Module):
-    def __init__(self, gamma = 0.99, num_resBlocks = 8):
+    def __init__(self, gamma = 0.99, num_resBlocks = 4):
         super().__init__()
 
         self.gamma = gamma
@@ -72,22 +72,41 @@ class ActorCritic(nn.Module):
             nn.Linear(256,256),
         )
 
+        self.DenseValue = nn.Sequential(    
+            nn.Linear(35, 64),
+            nn.LeakyReLU(),
+            nn.Linear(64,64),
+            nn.LeakyReLU(),
+        )
+
+
+        
         self.CombineValue = nn.Sequential(
-            nn.Linear(896, 512),
+            nn.Linear(64,16),
             nn.LeakyReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(16,1)
+        )
+        self.ConvValue = nn.Sequential(
+            nn.Conv2d(23,4,kernel_size=(3,3), padding=1),
+            nn.BatchNorm2d(4),
             nn.LeakyReLU(),
-            nn.Linear(256, 128),
+            nn.Flatten(),
+            nn.Linear(11*21*4, 64),
             nn.LeakyReLU(),
-            nn.Linear(128, 64),
-            nn.LeakyReLU(),
-            nn.Linear(64,1)
         )
 
         self.distribution = torch.distributions.Categorical
         self.apply(init_weights)
     
-    
+    @property
+    def actor_parameters(self):
+        # Returns parameters for the actor network
+        return list(self.denseFinal.parameters()) + list(self.ConvCombineFinal.parameters()) + list(self.DenseConv.parameters()) + list(self.ConvCombine.parameters()) + list(self.denselayer.parameters()) + list(self.ConvScalar.parameters()) + list(self.ResTransfrom.parameters()) + list(self.ConvConv.parameters())
+
+    @property
+    def critic_parameters(self):
+        # Returns parameters for the critic network
+        return list(self.DenseValue.parameters()) + list(self.ConvValue.parameters()) + list(self.CombineValue.parameters())
     
     def loss_func(self, boardstate, vectorstate, a, v_t, device, total_step):
         torch.set_num_threads(1)
@@ -104,7 +123,7 @@ class ActorCritic(nn.Module):
         m = self.distribution(probs)
         entropy = -m.entropy().cpu()
         exp_v = m.log_prob(a).cpu() * td.detach().squeeze().cpu()
-        a_loss = exp_v
+        a_loss = -exp_v
         l2_activity_loss = torch.sum(logits**2).cpu()
 
         #if total_step % 2000 == 0:
@@ -115,8 +134,8 @@ class ActorCritic(nn.Module):
         #    print("total_loss: ", (c_loss * 10**3 + a_loss + entropy * 5 * 10**-3 + l2_activity_loss * 5 * 10**-6).mean())
 
 
-        total_loss = (c_loss * 10**3 + a_loss * 4 + entropy * 2 * 10 ** -3 + l2_activity_loss * 5 * 10 ** -4).mean()
-        return values, total_loss, c_loss.mean() * 10 ** 3, a_loss.mean() * 4, entropy.mean() * 2 * 10 ** -3, l2_activity_loss.mean() * 2 * 10 ** -4
+        total_loss = (c_loss * 10 ** 3 + a_loss * 10 + entropy * 10 ** -3 + l2_activity_loss *5 * 10 ** -4).mean()
+        return values, total_loss, c_loss.mean() * 10 ** 3, a_loss.mean() * 10, entropy.mean() * 10 ** -3, l2_activity_loss.mean()* 5 * 10 ** -4
 
     def choose_action(self,boardstate,vectorstate, env, total_step):
         torch.set_num_threads(1)
@@ -164,8 +183,10 @@ class ActorCritic(nn.Module):
         boardactions = self.ConvCombineFinal(y)
         state = torch.cat((boardactions,vectoractions),1)
 
-        z = torch.cat((x,y),1)
-        value = self.CombineValue(z)
+        value1 = self.DenseValue(vectorstate2)
+        value2 = self.ConvValue(boardstate2)
+        value = value1 + value2
+        value = self.CombineValue(value)
         return state, value
         
     
