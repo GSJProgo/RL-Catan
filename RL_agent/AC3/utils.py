@@ -14,12 +14,16 @@ def v_wrap(np_array, dtype=np.float32):
 
 
 def init_weights(m):
-    if type(m) == nn.Linear or type(m) == nn.Conv2d:
-        nn.init.normal_(m.weight, mean=0., std=0.04)
-        nn.init.uniform_(m.bias, -0.1, 0.1)
+    if isinstance(m, (nn.Linear, nn.Conv2d)):
+        nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+        if m.bias is not None:
+            nn.init.constant_(m.bias, 0)
+    elif isinstance(m, nn.BatchNorm2d):
+        nn.init.constant_(m.weight, 1)
+        nn.init.constant_(m.bias, 0)
 
 
-def push_and_pull(actoropt,criticopt, lnet, gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, ba, br, gamma, device, global_device, total_step):
+def push_and_pull(actoropt,criticopt, lnet, gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, ba, br, gamma, device, global_device, total_step, won):
     torch.set_num_threads(1)
     if done:
         v_s_ = 0.               # terminal
@@ -55,9 +59,11 @@ def push_and_pull(actoropt,criticopt, lnet, gnet, done, boardstate_, vectorstate
         grad = lp.grad.to(global_device)
         gp._grad = grad
     actoropt.step() 
+    valueloss = 0
 
+    criticloss = c_loss.mean()
     criticopt.zero_grad()
-    c_loss.mean().backward()
+    criticloss.backward()
 
     for lp, gp in zip(lnet.critic_parameters, gnet.critic_parameters):
         grad = lp.grad.to(global_device)
@@ -66,7 +72,7 @@ def push_and_pull(actoropt,criticopt, lnet, gnet, done, boardstate_, vectorstate
 
     # pull global parameters
     lnet.load_state_dict(gnet.state_dict())
-    return values, loss, c_loss, a_loss, entropy, l2
+    return values, loss, c_loss, a_loss, entropy, l2, valueloss
 
 def record(global_ep, global_ep_r, ep_r, res_queue, name):
     
