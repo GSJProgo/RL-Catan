@@ -100,6 +100,9 @@ class ActorCritic(nn.Module):
         a_loss = exp_v
         l2_activity_loss = torch.sum(logits**2).cpu()
 
+        
+        torch.cuda.empty_cache()
+
         #if total_step % 2000 == 0:
         #    print("c_loss: ", c_loss.mean()* 10**3)
         #    print("a_loss: ", a_loss.mean())

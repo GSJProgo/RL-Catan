@@ -93,11 +93,14 @@ class ActorCritic(nn.Module):
         boardstate = boardstate.to(device)
         vectorstate = vectorstate.to(device)
         logits, values = self.forward(boardstate, vectorstate)
+        boardstate = boardstate.cpu()
+        vectorstate = vectorstate.cpu()
         logits = logits.cpu()
         values = values.cpu()
         td = v_t - values
         c_loss = td.pow(2)
         a = a.cpu()
+        v_t = v_t.cpu()
         probs = F.softmax(logits, dim=1)
         m = self.distribution(probs)
         entropy = -m.entropy().cpu()
@@ -120,6 +123,8 @@ class ActorCritic(nn.Module):
         torch.set_num_threads(1)
         self.eval()
         logits, _ = self.forward(boardstate, vectorstate)
+        boardstate = boardstate.cpu()
+        vectorstate = vectorstate.cpu()
         logits = logits.cpu()
         mean = logits.mean()
         prob = F.softmax(logits, dim=1).data

@@ -5,6 +5,8 @@ from collections import namedtuple, deque
 from itertools import count
 import time
 from itertools import product
+import gc
+
 
 from utils import v_wrap, push_and_pull, record, init_weights
 
@@ -47,7 +49,7 @@ import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_8.1.0", config={}, group='finalrun8.2.0')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_9.7.2", config={}, group='finalrun9.7.2')
 
 torch.manual_seed(2)
 
@@ -68,7 +70,7 @@ def select_action(action, env):
        
 
 UPDATE_GLOBAL_ITER = 1000
-GAMMA = 0.98
+GAMMA = 0.99
 MAX_EP = 500000
 
 class Worker(mp.Process):
@@ -78,8 +80,8 @@ class Worker(mp.Process):
         self.name = 'w%02i' % name
         self.g_ep, self.g_ep_r, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = gnet, opt
-        self.actor_optimizer = torch.optim.Adam(self.gnet.actor_parameters, lr=4e-4, betas=(0.9, 0.999), weight_decay=0.001) 
-        self.critic_optimizer = torch.optim.Adam(self.gnet.critic_parameters, betas=(0.9, 0.999), lr=1e-5, weight_decay=0.001) 
+        self.actor_optimizer = torch.optim.Adam(self.gnet.actor_parameters, lr=4e-4, betas=(0.9, 0.999), weight_decay=0.0001) 
+        self.critic_optimizer = torch.optim.Adam(self.gnet.critic_parameters, betas=(0.9, 0.999), lr=1e-5, weight_decay=0.0001) 
         self.critic_optimizer = opt #need to think if this works like this
 
         
@@ -100,6 +102,8 @@ class Worker(mp.Process):
         self.average_actorregu = []
         self.average_criticregu = []
         self.average_value_loss = []
+
+        self.gametime = []
 
         self.count = 0
 
@@ -122,20 +126,21 @@ class Worker(mp.Process):
         self.average_actorregu = []
         self.average_criticregu = []
         self.average_value_loss = []
+        buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, buffer_logits, buffer_values = [], [], [], [], [], []
         while self.g_ep.value < MAX_EP:  
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_8_2_0.pth')
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_9_7_2.pth')
             
             print("episode", self.g_ep.value)
             self.env.new_game()
             boardstate = state_changer(self.env)[0].to(self.device)
             vectorstate = state_changer(self.env)[1].to(self.device)
-            buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
+
             ep_r = 0.
             if self.opt.param_groups[0]['lr'] > 5e-5:
                 self.opt.param_groups[0]['lr'] = 1e-4 * 0.9998 ** (self.g_ep.value)
-                self.actor_optimizer.param_groups[0]['lr'] = 4e-4 * 0.9998 ** (self.g_ep.value)
-                self.critic_optimizer.param_groups[0]['lr'] = 1e-4 * 0.9998 ** (self.g_ep.value)
+                self.actor_optimizer.param_groups[0]['lr'] = 4e-4 * 0.9999 ** (self.g_ep.value)
+                self.critic_optimizer.param_groups[0]['lr'] = 4e-4 * 0.9999 ** (self.g_ep.value)
             elif self.opt.param_groups[0]['lr'] > 1e-5:
                 self.opt.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
                 self.actor_optimizer.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
@@ -150,21 +155,38 @@ class Worker(mp.Process):
             print("new_actor_lr", self.actor_optimizer.param_groups[0]['lr'])
             print("new_critic_lr", self.critic_optimizer.param_groups[0]['lr'])
 
-            while len(buffer_a) > 0:
+            for i in range (len(buffer_a)):
                 buffer_a.pop()
+            for i in range (len(buffer_boardstate)):
                 buffer_boardstate.pop()
+            for i in range (len(buffer_vectorstate)):
                 buffer_vectorstate.pop()
+            for i in range (len(buffer_r)):
                 buffer_r.pop()
-            print("buffer_a", buffer_a)
-            print("buffer_boardstate", buffer_boardstate)
-            print("buffer_vectorstate", buffer_vectorstate)
-            print("buffer_r", buffer_r)
+            for i in range (len(buffer_logits)):
+                buffer_logits.pop()
+            for i in range (len(buffer_values)):
+                buffer_values.pop()
+            
+            #print("buffer_a", len(buffer_a))    
+            #print("buffer_boardstate", len(buffer_boardstate))
+            #print("buffer_vectorstate", len(buffer_vectorstate))
+            #print("buffer_r", len(buffer_r))
+            #print("buffer_logits", len(buffer_logits))
+            #print("buffer_values", len(buffer_values))
+
+            
+
+            torch.cuda.memory_summary(device=None, abbreviated=False)
+
 
             while True:
                 self.count += 1
                 if self.env.game.cur_player == 0:
                     self.env.phase.statechange = 0
-                    a, meanlogits = self.lnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
+                    a, meanlogits, logits, values = self.lnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
+                    buffer_logits.append(logits)
+                    buffer_values.append(values)
                     log_dict[f'meanlogits{self.name}'] = meanlogits
                     select_action(a, self.env)
 
@@ -181,28 +203,27 @@ class Worker(mp.Process):
                     
                     if total_step % UPDATE_GLOBAL_ITER == 0 or done:  # update global and assign to local net
                         # sync
-                        v_s_, loss, c_loss, a_loss, entropy, l2, valueloss = push_and_pull(self.actor_optimizer, self.critic_optimizer , self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step, 0)
-                        buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
+                        v_s_, loss, c_loss, a_loss, entropy, l2, valueloss = push_and_pull(self.actor_optimizer, self.critic_optimizer , self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step, 0, buffer_logits, buffer_values)
 
                         self.average_loss.insert(0, loss)
-                        if len(self.average_loss) > 2000:
+                        if len(self.average_loss) > 200:
                             self.average_loss.pop()
 
                         v_s_ = v_s_.cpu().mean().item()
                         self.average_v_s_.insert(0, v_s_)
-                        if len(self.average_v_s_) > 2000:
+                        if len(self.average_v_s_) > 200:
                             self.average_v_s_.pop()
 
                         self.average_c_loss.insert(0, c_loss)
-                        if len(self.average_c_loss) > 2000:
+                        if len(self.average_c_loss) > 200:
                             self.average_c_loss.pop()
                        
                         self.average_entropy.insert(0, entropy)
-                        if len(self.average_entropy) > 2000:
+                        if len(self.average_entropy) > 200:
                             self.average_entropy.pop()
 
                         self.average_l2.insert(0, l2)
-                        if len(self.average_l2) > 2000:
+                        if len(self.average_l2) > 200:
                             self.average_l2.pop()
 
                         self.average_a_loss.insert(0, a_loss)
@@ -210,11 +231,10 @@ class Worker(mp.Process):
                             self.average_a_loss.pop()
 
                         self.average_value_loss.insert(0, valueloss)
-                        if len(self.average_value_loss) > 2000:
+                        if len(self.average_value_loss) > 200:
                             self.average_value_loss.pop()
 
                         if self.env.game.is_finished == 1:  # done and print information
-                            print ("buffer_r",buffer_r)
                             print("loss", loss)
                             print("c_loss", c_loss)
                             print("a_loss", a_loss)
@@ -256,21 +276,22 @@ class Worker(mp.Process):
                     #        self.haslrupdated = 0
                     boardstate = boardstate_
                     vectorstate = vectorstate_ 
+                    
                     total_step += 1
                 else: 
-                    if self.g_ep.value < 36000 + self.number*6000:
+                    if self.g_ep.value < 16000 + self.number*4000:
                         boardstate = state_changer(self.env)[0].to(self.device)
                         vectorstate = state_changer(self.env)[1].to(self.device)
                         a = random_assignment(self.env)
                     else:
-                        if self.g_ep.value % 36000 == self.number*6000:
+                        if self.g_ep.value % 16000 == self.number*4000:
+                            print("This is called to early")
                             if self.hasassigned == 0:
                                 self.lnet.to(self.device)  # Ensure lnet is on the correct device
                                 self.oppnet.load_state_dict(self.lnet.state_dict())
                                 self.oppnet.to(self.device) 
-                                print("self.oppnet is uqoighdoigsjhodigh",self.oppnet)
                                 self.hasassigned = 1
-                        if self.g_ep.value % 6000 == 1:
+                        if self.g_ep.value % 4000 == 1:
                             self.hasassigned = 0
                         boardstate = state_changer(self.env)[0].to(self.device)
                         vectorstate = state_changer(self.env)[1].to(self.device)
@@ -285,47 +306,44 @@ class Worker(mp.Process):
                         buffer_vectorstate.append(vectorstate)
                         buffer_r.append(r)
                         ep_r += r
-                        v_s_, loss, c_loss, a_loss, entropy, l2, valueloss = push_and_pull(self.actor_optimizer, self.critic_optimizer, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step, 1)
+                        v_s_, loss, c_loss, a_loss, entropy, l2, valueloss = push_and_pull(self.actor_optimizer, self.critic_optimizer, self.lnet, self.gnet, done, boardstate_, vectorstate_, buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, GAMMA, self.device, self.global_device, total_step, 1, buffer_logits, buffer_values)
                         
                         
                         self.average_loss.insert(0, loss)
-                        if len(self.average_loss) > 2000:
+                        if len(self.average_loss) > 200:
                             self.average_loss.pop()
 
                         v_s_ = v_s_.cpu().mean().item()
                         self.average_v_s_.insert(0, v_s_)
-                        if len(self.average_v_s_) > 2000:
+                        if len(self.average_v_s_) > 200:
                             self.average_v_s_.pop()
 
                         self.average_c_loss.insert(0, c_loss)
-                        if len(self.average_c_loss) > 2000:
+                        if len(self.average_c_loss) > 200:
                             self.average_c_loss.pop()
                        
                         self.average_entropy.insert(0, entropy)
-                        if len(self.average_entropy) > 2000:
+                        if len(self.average_entropy) > 200:
                             self.average_entropy.pop()
 
                         self.average_l2.insert(0, l2)
-                        if len(self.average_l2) > 2000:
+                        if len(self.average_l2) > 200:
                             self.average_l2.pop()
 
                         self.average_a_loss.insert(0, a_loss)
-                        if len(self.average_a_loss) > 2000:
+                        if len(self.average_a_loss) > 200:
                             self.average_a_loss.pop()
 
                         self.average_value_loss.insert(0, valueloss)
-                        if len(self.average_value_loss) > 2000:
+                        if len(self.average_value_loss) > 200:
                             self.average_value_loss.pop()
 
 
 
-                        
-                        print ("buffer_r",buffer_r)
                         print("loss", loss)
                         print("c_loss", c_loss)
                         print("a_loss", a_loss)
                         print("entropy", entropy)
-                        buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r = [], [], [], []
                         print(self.name, "has achieved total steps of", total_step)
                         print("v_s_", v_s_)
                         print("loss", loss)
@@ -342,6 +360,8 @@ class Worker(mp.Process):
     def update_learning_rate(self, new_lr):
         for param_group in self.opt.param_groups:
             param_group['lr'] = new_lr
+
+
     
 
 
@@ -362,7 +382,7 @@ if __name__ == "__main__":
     global_ep, global_ep_r, res_queue = mp.Value('i', 0), mp.Value('d', 0.), mp.Queue()
     logger = Log()
     # parallel training
-    workers = [Worker(gnet, opt, global_ep, global_ep_r, res_queue, i, j, logger, 0) for i in range(6) for j in range(2)]
+    workers = [Worker(gnet, opt, global_ep, global_ep_r, res_queue, i, j, logger, 0) for i in range(4) for j in range(2)]
     print("workers", workers)
     [w.start() for w in workers]
     res = []                    # record episode reward to plot
@@ -464,13 +484,13 @@ def logging(env, logger, global_ep_r, v_s_, loss, total_step, average_loss, aver
 
     run.log({"average_loss_end": sum(logger.average_loss_end)/5}, step=global_ep)
 
-    run.log({"average_v_s_": sum(average_v_s_)/2000}, step=global_ep)
-    run.log({"average_loss": sum(average_loss)/2000}, step=global_ep)
-    run.log({"average_c_loss": sum(average_c_loss)/2000}, step=global_ep)
-    run.log({"average_a_loss": sum(average_a_loss)/2000}, step=global_ep)
-    run.log({"average_entropy": sum(average_entropy)/2000}, step=global_ep)
-    run.log({"average_l2": sum(average_l2)/2000}, step=global_ep)
-    run.log({"average_value_loss": sum(average_value_loss)/2000}, step=global_ep)
+    run.log({"average_v_s_": sum(average_v_s_)/200}, step=global_ep)
+    run.log({"average_loss": sum(average_loss)/200}, step=global_ep)
+    run.log({"average_c_loss": sum(average_c_loss)/200}, step=global_ep)
+    run.log({"average_a_loss": sum(average_a_loss)/200}, step=global_ep)
+    run.log({"average_entropy": sum(average_entropy)/200}, step=global_ep)
+    run.log({"average_l2": sum(average_l2)/200}, step=global_ep)
+    run.log({"average_value_loss": sum(average_value_loss)/200}, step=global_ep)
 
     run.log({"Function Call Counts": wandb.Plotly(fig)}, step=global_ep)
     
