@@ -49,7 +49,7 @@ import plotly.graph_objects as go
 import os
 available_gpus = [torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 print("available_gpus", available_gpus)
-run = wandb.init(project="RL-Catan_AC3", name="RL_version_9.7.2", config={}, group='finalrun9.7.2')
+run = wandb.init(project="RL-Catan_AC3", name="RL_version_9.8.8", config={}, group='finalrun9.8.8')
 
 torch.manual_seed(2)
 
@@ -77,11 +77,12 @@ class Worker(mp.Process):
     def __init__(self, gnet, opt, global_ep, global_ep_r, res_queue, name, device, logger, global_device):
         super(Worker, self).__init__()
         self.number = name
+        print("self.number", self.number)
         self.name = 'w%02i' % name
         self.g_ep, self.g_ep_r, self.res_queue = global_ep, global_ep_r, res_queue
         self.gnet, self.opt = gnet, opt
         self.actor_optimizer = torch.optim.Adam(self.gnet.actor_parameters, lr=4e-4, betas=(0.9, 0.999), weight_decay=0.0001) 
-        self.critic_optimizer = torch.optim.Adam(self.gnet.critic_parameters, betas=(0.9, 0.999), lr=1e-5, weight_decay=0.0001) 
+        self.critic_optimizer = torch.optim.Adam(self.gnet.critic_parameters, betas=(0.9, 0.999), lr=4e-4, weight_decay=0.0001) 
         self.critic_optimizer = opt #need to think if this works like this
 
         
@@ -129,7 +130,7 @@ class Worker(mp.Process):
         buffer_boardstate, buffer_vectorstate, buffer_a, buffer_r, buffer_logits, buffer_values = [], [], [], [], [], []
         while self.g_ep.value < MAX_EP:  
             if self.g_ep.value % 1000 == 0:
-                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_9_7_2.pth')
+                torch.save(self.gnet.state_dict(), f'A3Cagent{self.g_ep.value}_policy_net_9_8_8.pth')
             
             print("episode", self.g_ep.value)
             self.env.new_game()
@@ -137,16 +138,16 @@ class Worker(mp.Process):
             vectorstate = state_changer(self.env)[1].to(self.device)
 
             ep_r = 0.
-            if self.opt.param_groups[0]['lr'] > 5e-5:
+            if self.actor_optimizer.param_groups[0]['lr'] > 1e-4:
                 self.opt.param_groups[0]['lr'] = 1e-4 * 0.9998 ** (self.g_ep.value)
                 self.actor_optimizer.param_groups[0]['lr'] = 4e-4 * 0.9999 ** (self.g_ep.value)
                 self.critic_optimizer.param_groups[0]['lr'] = 4e-4 * 0.9999 ** (self.g_ep.value)
-            elif self.opt.param_groups[0]['lr'] > 1e-5:
+            elif self.actor_optimizer.param_groups[0]['lr'] > 1e-5:
                 self.opt.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
-                self.actor_optimizer.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
-                self.critic_optimizer.param_groups[0]['lr'] = 5e-5 * 0.99998 ** (self.g_ep.value)
+                self.actor_optimizer.param_groups[0]['lr'] = 1e-4 * 0.99998 ** (self.g_ep.value)
+                self.critic_optimizer.param_groups[0]['lr'] = 1e-4 * 0.99998 ** (self.g_ep.value)
             else:
-                self.opt.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
+                self.actor_optimizer.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
                 self.actor_optimizer.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
                 self.critic_optimizer.param_groups[0]['lr'] = 1e-5 * 0.999998 ** (self.g_ep.value)
 
@@ -279,25 +280,25 @@ class Worker(mp.Process):
                     
                     total_step += 1
                 else: 
-                    if self.g_ep.value < 16000 + self.number*4000:
+                    if self.g_ep.value < 6000 + self.number*1500:
                         boardstate = state_changer(self.env)[0].to(self.device)
                         vectorstate = state_changer(self.env)[1].to(self.device)
                         a = random_assignment(self.env)
-                    else:
-                        if self.g_ep.value % 16000 == self.number*4000:
-                            print("This is called to early")
-                            if self.hasassigned == 0:
-                                self.lnet.to(self.device)  # Ensure lnet is on the correct device
-                                self.oppnet.load_state_dict(self.lnet.state_dict())
-                                self.oppnet.to(self.device) 
-                                self.hasassigned = 1
-                        if self.g_ep.value % 4000 == 1:
-                            self.hasassigned = 0
+                        self.hasassigned = 0
+                    else:           
+                        if self.hasassigned == 0:
+                            self.lnet.to(self.device)  # Ensure lnet is on the correct device
+                            self.oppnet.load_state_dict(self.lnet.state_dict())
+                            self.oppnet.to(self.device) 
+                            self.hasassigned = 1
+            
                         boardstate = state_changer(self.env)[0].to(self.device)
                         vectorstate = state_changer(self.env)[1].to(self.device)
-                        a, meanlogits = self.oppnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
+                        a, meanlogits, logits, values = self.oppnet.choose_action(boardstate, vectorstate, self.env, total_step) #select action
                         select_action(a, self.env)
                     if self.env.game.is_finished == 1:  # done and print information
+                        buffer_values.append(values)
+                        buffer_logits.append(logits)
                         boardstate_,vectorstate_, r, done =  state_changer(self.env)[0], state_changer(self.env)[1], self.env.phase.reward, self.env.game.is_finished
                         print(self.env.phase.reward)
                         self.env.phase.reward = 0
@@ -566,26 +567,26 @@ def logging(env, logger, global_ep_r, v_s_, loss, total_step, average_loss, aver
         logger.player1_average_knights_played.pop(5)
 
 
-    run.log({"player0_log.average_victory_points": sum(player0_log.average_victory_points)/5}, step=global_ep)
-    run.log({"player1_log.average_victory_points": sum(player1_log.average_victory_points)/5}, step=global_ep)
-    run.log({"player0_log.average_resources_found": sum(player0_log.average_resources_found)/5}, step=global_ep)
-    run.log({"player1_log.average_resources_found": sum(player1_log.average_resources_found)/5}, step=global_ep)
-    run.log({"player0_log.average_resources_traded": sum(player0_log.average_resources_traded)/5}, step=global_ep)
-    run.log({"player1_log.average_resources_traded": sum(player1_log.average_resources_traded)/5}, step=global_ep)
-    run.log({"player0_log.average_development_cards_bought": sum(player0_log.average_development_cards_bought)/5}, step=global_ep)
-    run.log({"player1_log.average_development_cards_bought": sum(player1_log.average_development_cards_bought)/5}, step=global_ep)
-    run.log({"player0_log.average_development_cards_used": sum(player0_log.average_development_cards_used)/5}, step=global_ep)
-    run.log({"player1_log.average_development_cards_used": sum(player1_log.average_development_cards_used)/5}, step=global_ep)
+    run.log({"player0_log.average_victory_points": sum(player0_log.average_victory_points)/10}, step=global_ep)
+    run.log({"player1_log.average_victory_points": sum(player1_log.average_victory_points)/10}, step=global_ep)
+    run.log({"player0_log.average_resources_found": sum(player0_log.average_resources_found)/10}, step=global_ep)
+    run.log({"player1_log.average_resources_found": sum(player1_log.average_resources_found)/10}, step=global_ep)
+    run.log({"player0_log.average_resources_traded": sum(player0_log.average_resources_traded)/10}, step=global_ep)
+    run.log({"player1_log.average_resources_traded": sum(player1_log.average_resources_traded)/10}, step=global_ep)
+    run.log({"player0_log.average_development_cards_bought": sum(player0_log.average_development_cards_bought)/10}, step=global_ep)
+    run.log({"player1_log.average_development_cards_bought": sum(player1_log.average_development_cards_bought)/10}, step=global_ep)
+    run.log({"player0_log.average_development_cards_used": sum(player0_log.average_development_cards_used)/10}, step=global_ep)
+    run.log({"player1_log.average_development_cards_used": sum(player1_log.average_development_cards_used)/10}, step=global_ep)
     
-    run.log({"player0_log.average_roads_built": sum(player0_log.average_roads_built)/5}, step=global_ep)
-    run.log({"player1_log.average_roads_built": sum(player1_log.average_roads_built)/5}, step=global_ep)
-    run.log({"player0_log.average_settlements_built": sum(player0_log.average_settlements_built)/5}, step=global_ep)
-    run.log({"player1_log.average_settlements_built": sum(player1_log.average_settlements_built)/5}, step=global_ep)
-    run.log({"player0_log.average_cities_built": sum(player0_log.average_cities_built)/5}, step=global_ep)
-    run.log({"player1_log.average_cities_built": sum(player1_log.average_cities_built)/5}, step=global_ep)
-    run.log({"player0_log.average_knights_played": sum(player0_log.average_knights_played)/5}, step=global_ep)
-    run.log({"player1_log.average_knights_played": sum(player1_log.average_knights_played)/5}, step=global_ep)
-    run.log({"player0_log.average_longest_road": sum(player0_log.average_longest_road)/5}, step=global_ep)
+    run.log({"player0_log.average_roads_built": sum(player0_log.average_roads_built)/10}, step=global_ep)
+    run.log({"player1_log.average_roads_built": sum(player1_log.average_roads_built)/10}, step=global_ep)
+    run.log({"player0_log.average_settlements_built": sum(player0_log.average_settlements_built)/10}, step=global_ep)
+    run.log({"player1_log.average_settlements_built": sum(player1_log.average_settlements_built)/10}, step=global_ep)
+    run.log({"player0_log.average_cities_built": sum(player0_log.average_cities_built)/10}, step=global_ep)
+    run.log({"player1_log.average_cities_built": sum(player1_log.average_cities_built)/10}, step=global_ep)
+    run.log({"player0_log.average_knights_played": sum(player0_log.average_knights_played)/10}, step=global_ep)
+    run.log({"player1_log.average_knights_played": sum(player1_log.average_knights_played)/10}, step=global_ep)
+    run.log({"player0_log.average_longest_road": sum(player0_log.average_longest_road)/10}, step=global_ep)
 
     run.log({"game.average_reward_per_move": sum(game.average_reward_per_move)/1000}, step=global_ep)
     run.log({"game.average_expected_state_action_value": sum(game.average_expected_state_action_value)/1000}, step=global_ep)
