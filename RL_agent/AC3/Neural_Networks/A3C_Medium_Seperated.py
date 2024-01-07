@@ -5,12 +5,11 @@ from torch.distributions import Categorical
 from utils import init_weights
 import gc
 
-class ActorCritic(nn.Module):
-    def __init__(self, gamma = 0.99, num_resBlocks = 6):
-        super().__init__()
+from config import *
 
-        self.gamma = gamma
-        self.last_values = []
+class ActorCritic(nn.Module):
+    def __init__(self):
+        super().__init__()
 
         self.denselayer = nn.Sequential(
             nn.Linear(35,128),
@@ -48,7 +47,7 @@ class ActorCritic(nn.Module):
         )
 
         self.ConvConv = nn.ModuleList(
-            [ResBlock() for i in range(num_resBlocks)]
+            [ResBlock() for i in range(NUM_RES_BLOCKS_ACTOR)]
         )
 
         self.ConvCombine = nn.Sequential(
@@ -91,7 +90,7 @@ class ActorCritic(nn.Module):
 
 
         self.ResValue = nn.ModuleList(
-            [ResBlock2() for i in range(4)]
+            [ResBlock2() for i in range(NUM_RES_BLOCKS_CRITIC)]
         )
         self.CombineValue = nn.Sequential(
             nn.Linear(64,1),
@@ -112,24 +111,25 @@ class ActorCritic(nn.Module):
 
     @property
     def actor_parameters(self):
-        # Returns parameters for the actor network
+        # Returns weights and biases used by the actor network
         return list(self.denseFinal.parameters()) + list(self.ConvCombineFinal.parameters()) + list(self.DenseConv.parameters()) + list(self.ConvCombine.parameters()) + list(self.denselayer.parameters()) + list(self.ConvScalar.parameters()) + list(self.ResTransfrom.parameters()) + list(self.ConvConv.parameters())
 
     @property
     def critic_parameters(self):
-        # Returns parameters for the critic network
+        # Returns weights and biases used by the critic network
         return list(self.CombineValue.parameters()) + list(self.DenseValue.parameters()) + list(self.ConvValue.parameters())
     
     def loss_func(self, boardstate, vectorstate, a, v_t, device):
+        # Calculates the loss function for the A3C agent.
         torch.set_num_threads(1)
         self.train()
         boardstate = boardstate.to(device)
         vectorstate = vectorstate.to(device)
-        logits, values = self.forward(boardstate, vectorstate)
+        logits, values = self.forward(boardstate, vectorstate) 
         logits2 = logits.cpu().detach()
         td = v_t - values
-        c_loss = td.pow(2)
-        a = a.to(device)  # move a to the GPU
+        c_loss = td.pow(2) 
+        a = a.to(device) 
         probs = F.softmax(logits, dim=1)
         m = self.distribution(probs)
         entropy = -m.entropy().cpu()
@@ -142,22 +142,13 @@ class ActorCritic(nn.Module):
         a_loss = a_loss.cpu()
         entropy = entropy.cpu()
         l2_activity_loss = l2_activity_loss.cpu()
+
+        total_loss = (c_loss * C_LOSS_FACTOR + a_loss * A_LOSS_FACTOR + entropy * ENTROPY_FACTOR + l2_activity_loss * L2_ACTIVITY_FACTOR).mean()
         
-        #del boardstate, vectorstate, logits, td, probs, m, exp_v, a, v_t
+        return values, total_loss, c_loss.mean() * C_LOSS_FACTOR, a_loss.mean() * A_LOSS_FACTOR, entropy.mean() * ENTROPY_FACTOR, l2_activity_loss.mean()* L2_ACTIVITY_FACTOR
 
-        #if total_step % 2000 == 0:
-        #    print("c_loss: ", c_loss.mean()* 10**3)
-        #    print("a_loss: ", a_loss.mean())
-        #    print("entropy: ", entropy * 10**-3)
-        #    print("l2_activity_loss: ", l2_activity_loss * 10**-6)
-        #    print("total_loss: ", (c_loss * 10**3 + a_loss + entropy * 5 * 10**-3 + l2_activity_loss * 5 * 10**-6).mean())
-
-
-        total_loss = (c_loss * 10 ** 3 + a_loss * 10 + entropy * 10 ** -3 + l2_activity_loss *5 * 10 ** -4).mean()
-        return values, total_loss, c_loss.mean(), a_loss.mean(), entropy.mean() * 10 ** -4, l2_activity_loss.mean()* 5 * 10 ** -5
-
-    
     def get_value(self, boardstate, vectorstate, device):
+        #predicts the value for a given state
         torch.set_num_threads(1)
         self.eval()
         boardstate = boardstate.to(device)
@@ -168,14 +159,15 @@ class ActorCritic(nn.Module):
         return values2.data.numpy()
     
     def choose_action(self,boardstate,vectorstate, env, total_step):
+        #decides which action to take in a given state
         torch.set_num_threads(1)
         self.eval()
         logits, values = self.forward(boardstate, vectorstate)
         prob = F.softmax(logits, dim=1).data
 
-        prob = prob.cpu()  # move prob to the CPU
+        prob = prob.cpu()  
 
-        prob2 = prob * torch.from_numpy(env.checklegalmoves()).float()  # convert env.checklegalmoves() to a tensor
+        prob2 = prob * torch.from_numpy(env.checklegalmoves()).float()  
 
         try: 
             m = self.distribution(prob2)
@@ -195,9 +187,10 @@ class ActorCritic(nn.Module):
 
         mean = logits2.mean()
 
-        return m.sample().numpy()[0], mean, logits2, values2  # m.sample() is already on the CPU, so you can convert it to a numpy array directly   
+        return m.sample().numpy()[0], logits2, values2  
             
     def forward(self, boardstate2, vectorstate2):
+        #forward pass through the network       
         vectorstate2 = F.normalize(vectorstate2)
         boardstate2 = F.normalize(boardstate2)
         x1 = self.denselayer(vectorstate2)
@@ -207,7 +200,6 @@ class ActorCritic(nn.Module):
         for resblock in self.ConvConv:
             y2 = resblock(y2)
         y2 = self.ConvCombine(y2)
-        #is this the right dimension in which I concentate?
         y = torch.cat((y1,y2),1)
         x = torch.cat((x1,x2),1)
         vectoractions = self.denseFinal(x)
@@ -221,8 +213,6 @@ class ActorCritic(nn.Module):
         value = self.CombineValue(value)
         return state, value
         
-    
-    
 class ResBlock(nn.Module):
     def __init__(self):
         super().__init__()

@@ -1243,9 +1243,9 @@ class Catan_Env:
         """
         player = self.players[self.game.cur_player]
         game = self.game
-        opponent = self.players[game.cur_player]
+        opponent = self.players[1 - game.cur_player]
         player.roads_connected = self.find_longest_road()
-        if player.roads_connected >= 5 and player.roads_connected > opponent.roads_connected:
+        if player.roads_connected >= 5 and player.roads_connected > opponent.roads_connected and player.longest_road == 0:
             if opponent.longest_road == 1:
                 opponent.longest_road = 0
                 opponent.victorypoints -= 2

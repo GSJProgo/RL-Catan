@@ -6,19 +6,17 @@ import wandb
 
 class Log:
     def __init__(self):
-        #The average is taken over the last 10 games 
         self.average_victory_points = []
         self.average_resources_found = []
-        #self.average_resources_found_move = 0 | I can calculate this  
-        self.final_board_state = 0 #tommorow
-        self.AI_function_calls = 0 #same here
-        self.successful_AI_function_calls = 0 #same here
+        self.final_board_state = 0 
+        self.AI_function_calls = 0 
+        self.successful_AI_function_calls = 0
         self.average_development_cards_bought = []
         self.average_roads_built = []
         self.average_settlements_built = []
         self.average_cities_built = []
         self.average_knights_played = []
-        self.average_development_cards_used = [] #victory point cards are seen as automatically used
+        self.average_development_cards_used = []
         self.average_resources_traded = []
         self.average_longest_road = []
 

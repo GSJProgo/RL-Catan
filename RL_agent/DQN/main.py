@@ -85,8 +85,6 @@ def select_action(boardstate, vectorstate):
                     position_x = action % 21 
                 action_selecter(final_action, position_x, position_y)
                 log.action_counts[action] += 1
-                #if phase.actionstarted >= 5:
-                #    action_selecter(5,0,0)
                 return action
             #elif game.cur_player == 1:
             #    action =  agent2_policy_net(boardstate, vectorstate).max(1).indices.view(1,1) 
@@ -141,7 +139,6 @@ def optimize_model():
 
     loss = F.l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
-    #adding sum of state action and sum of expected state action values to wandb
     game.average_q_value_loss.insert(0, loss.mean().item())
     print(loss.mean().item())
     while len(game.average_q_value_loss) > 1000:
@@ -191,13 +188,13 @@ for i_episode in range (num_episodes):
             game.random_action_made = 1
             phase.actionstarted = 0
             if phase.statechange == 1:
-                #calculate reward and check done
+               
                 #next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
                 #reward = torch.tensor([reward], device = device)
                 #next_board_state = torch.tensor(next_board_state, device = device, dtype = torch.float).unsqueeze(0)
                 #next_vector_state = torch.tensor(next_vector_state, device = device, dtype = torch.float).unsqueeze(0)
 
-                if game.is_finished == 1: #this is mormally the var done
+                if game.is_finished == 1: 
                     game.cur_player = 0
                     cur_boardstate =  state_changer()[0]
                     cur_vectorstate = state_changer()[1]
@@ -221,7 +218,7 @@ for i_episode in range (num_episodes):
                     next_vector_state = None
                 #cur_boardstate = next_board_state
                 #cur_vector_state = next_vector_state
-                if game.is_finished == 1: #this is mormally the var done
+                if game.is_finished == 1:
                     phase.gamemoves = t
                     print("done1")
                     game.is_finished = 0
@@ -242,7 +239,6 @@ for i_episode in range (num_episodes):
             cur_boardstate = cur_boardstate.clone().detach().unsqueeze(0).to(device).float()        
             cur_vectorstate = cur_vectorstate.clone().detach().unsqueeze(0).to(device).float()
             action = select_action(cur_boardstate, cur_vectorstate)
-            #calculate reward and check done
             if phase.statechange == 1:
                 #phase.reward += 0.0001
                 next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished  #[this is were I need to perform an action and return the next state, reward, done
@@ -279,7 +275,7 @@ for i_episode in range (num_episodes):
                     episode_durations.append(t+1)
                     break
             else:
-                #phase.reward -= 0.00002 #does this gradient get to small? Should I rather add a reward for successful moves?
+                #phase.reward -= 0.00002
                 sample = random.random()
                 if sample < 0.05:
                     next_board_state, next_vector_state, reward, done = state_changer()[0], state_changer()[1], phase.reward, game.is_finished
@@ -299,9 +295,6 @@ for i_episode in range (num_episodes):
     elapsed_time = time.time() - start_time
     wandb.log({"Elapsed Time": elapsed_time}, step=i_episode)
     wandb.log({"t": t}, step = i_episode)
-    #print(t)
-    #print(player0.victorypoints)
-    #print(player1.victorypoints)
     game.average_time.insert(0, time.time() - time_new_start) 
     if len(game.average_time) > 10:
         game.average_time.pop(10)
